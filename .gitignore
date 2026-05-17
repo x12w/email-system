@@ -1,0 +1,36 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# Backend
+backend/target/
+backend/.gradle/
+backend/build/
+backend/.env
+
+# Runtime data
+data/mysql/*
+data/redis/*
+data/mailpit/*
+data/uploads/*
+!data/mysql/.gitkeep
+!data/redis/.gitkeep
+!data/mailpit/.gitkeep
+!data/uploads/.gitkeep
+
+# Docker / temp
+*.tmp
+*.pid
+
