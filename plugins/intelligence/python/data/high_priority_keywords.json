@@ -1,0 +1,29 @@
+{
+    "1.0": [
+        "urgent", "emergency", "emerge", "critical", "critically",
+        "asap",
+        "immediately", "immediate",
+        "紧急", "危急", "立即", "马上", "尽快",
+        "系统故障", "outage", "宕机", "崩溃", "服务器故障",
+        "生产故障", "线上故障", "事故"
+    ],
+    "0.5": [
+        "审批", "approval", "approve",
+        "账单", "invoice", "payment", "付款", "缴费",
+        "投诉", "complaint", "纠纷",
+        "合同", "contract",
+        "到期", "expir", "过期", "逾期", "截止",
+        "password reset", "验证码", "security alert",
+        "安全警报", "安全提醒",
+        "action required", "需处理", "需行动",
+        "deadline", "期限",
+        "response needed", "请回复",
+        "请审批", "请批示",
+        "维护通知", "升级通知", "变更通知"
+    ],
+    "0.3": [
+        "重要", "important", "notice", "通知",
+        "公告", "announcement",
+        "须知"
+    ]
+}
