@@ -1,12 +1,12 @@
 import axios from 'axios'
 import type { ApiResponse } from '@/types/api'
 
-const request = axios.create({
+const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 15000,
 })
 
-request.interceptors.request.use((config) => {
+http.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -14,7 +14,7 @@ request.interceptors.request.use((config) => {
   return config
 })
 
-request.interceptors.response.use(
+http.interceptors.response.use(
   (response) => {
     const body = response.data as ApiResponse<unknown>
     if (body.code !== '0') {
@@ -26,7 +26,7 @@ request.interceptors.response.use(
       }
       return Promise.reject(new Error(body.message || 'Request failed'))
     }
-    return body.data
+    return body.data as any
   },
   (error) => {
     if (error.response?.status === 401) {
@@ -38,5 +38,12 @@ request.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+const request = http as unknown as {
+  get<T = unknown>(url: string, config?: Record<string, unknown>): Promise<T>
+  post<T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>): Promise<T>
+  put<T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>): Promise<T>
+  delete<T = unknown>(url: string, config?: Record<string, unknown>): Promise<T>
+}
 
 export default request

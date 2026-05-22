@@ -5,7 +5,11 @@ import type {
   MailListResponse,
   SendMailRequest,
   MailAttachment,
+  MailAccount,
+  MailAccountRequest,
 } from '@/types/mail'
+
+// ---------- messages ----------
 
 export function getMailList(params: MailListParams): Promise<MailListResponse> {
   return request.get('/messages', { params })
@@ -24,7 +28,7 @@ export function saveDraft(data: SendMailRequest): Promise<void> {
 }
 
 export function markAsRead(id: number): Promise<void> {
-  return request.put(`/messages/${id}/read`)
+  return request.put(`/messages/${id}/read`, { read: true })
 }
 
 export function markAsUnread(id: number): Promise<void> {
@@ -35,10 +39,42 @@ export function deleteMail(id: number): Promise<void> {
   return request.delete(`/messages/${id}`)
 }
 
+// ---------- attachments ----------
+
 export function uploadAttachment(file: File): Promise<MailAttachment> {
   const formData = new FormData()
   formData.append('file', file)
   return request.post('/attachments', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+}
+
+export function downloadAttachment(id: number): Promise<Blob> {
+  return request.get(`/attachments/${id}/download`, { responseType: 'blob' })
+}
+
+export function deleteAttachment(id: number): Promise<void> {
+  return request.delete(`/attachments/${id}`)
+}
+
+// ---------- mail accounts ----------
+
+export function getMailAccounts(): Promise<MailAccount[]> {
+  return request.get('/mail-accounts')
+}
+
+export function createMailAccount(data: MailAccountRequest): Promise<void> {
+  return request.post('/mail-accounts', data)
+}
+
+export function updateMailAccount(id: number, data: Partial<MailAccountRequest>): Promise<void> {
+  return request.put(`/mail-accounts/${id}`, data)
+}
+
+export function deleteMailAccount(id: number): Promise<void> {
+  return request.delete(`/mail-accounts/${id}`)
+}
+
+export function testMailAccount(id: number): Promise<void> {
+  return request.post(`/mail-accounts/${id}/test`)
 }

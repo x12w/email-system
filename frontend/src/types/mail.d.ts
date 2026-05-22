@@ -60,3 +60,30 @@ export interface MailListParams {
 }
 
 export type MailListResponse = PaginatedData<MailItem>
+
+export interface MailAccount {
+  id: number
+  userId: number
+  emailAddress: string
+  displayName: string | null
+  smtpHost: string
+  smtpPort: number
+  imapHost: string
+  imapPort: number
+  username: string
+  sslEnabled: number
+  activeFlag: number
+  lastSyncAt: string | null
+}
+
+export interface MailAccountRequest {
+  emailAddress: string
+  displayName?: string
+  smtpHost: string
+  smtpPort: number
+  imapHost: string
+  imapPort: number
+  username: string
+  password: string
+  sslEnabled?: number
+}
