@@ -1,27 +1,47 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { UserInfo } from '@/types/auth'
 
-interface CurrentUser {
-  id: number
-  username: string
-  displayName: string
-}
+export const useAuthStore = defineStore('auth', () => {
+  const accessToken = ref<string>(localStorage.getItem('accessToken') || '')
+  const refreshToken = ref<string>(localStorage.getItem('refreshToken') || '')
+  const user = ref<UserInfo | null>(null)
 
-export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    accessToken: localStorage.getItem('accessToken') || '',
-    user: null as CurrentUser | null
-  }),
-  actions: {
-    setSession(token: string, user: CurrentUser) {
-      this.accessToken = token
-      this.user = user
-      localStorage.setItem('accessToken', token)
-    },
-    clearSession() {
-      this.accessToken = ''
-      this.user = null
-      localStorage.removeItem('accessToken')
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    try {
+      user.value = JSON.parse(storedUser)
+    } catch {
+      localStorage.removeItem('user')
     }
   }
-})
 
+  const isAuthenticated = computed(() => !!accessToken.value)
+
+  function setSession(token: string, refresh: string, userInfo: UserInfo) {
+    accessToken.value = token
+    refreshToken.value = refresh
+    user.value = userInfo
+    localStorage.setItem('accessToken', token)
+    localStorage.setItem('refreshToken', refresh)
+    localStorage.setItem('user', JSON.stringify(userInfo))
+  }
+
+  function clearSession() {
+    accessToken.value = ''
+    refreshToken.value = ''
+    user.value = null
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('user')
+  }
+
+  return {
+    accessToken,
+    refreshToken,
+    user,
+    isAuthenticated,
+    setSession,
+    clearSession,
+  }
+})

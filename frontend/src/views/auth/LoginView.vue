@@ -32,7 +32,7 @@ const form = reactive({
 
 async function submit() {
   const session = await login(form)
-  authStore.setSession(session.accessToken, session.user)
+  authStore.setSession(session.accessToken, session.refreshToken, session.user)
   await router.push('/')
 }
 </script>
