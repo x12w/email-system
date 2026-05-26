@@ -33,6 +33,8 @@ email-system/
 - [部署与 Docker 说明](docs/05-deployment.md)
 - [开发任务拆分建议](docs/06-roadmap.md)
 - [智能邮件管理模块设计](docs/07-intelligent-mail-management.md)
+- [Redis 缓存设计](docs/08-redis-cache-design.md)
+- [数据库前后端协同对齐接口文档](docs/09-database-api-alignment.md)
 
 ## 开发约定
 
