@@ -14,6 +14,10 @@
 | `mail_message` | 邮件主表 |
 | `mail_recipient` | 邮件收件人、抄送、密送 |
 | `mail_attachment` | 附件元数据 |
+| `mail_intelligence_result` | 邮件智能分析结果 |
+| `mail_threat_indicator` | 高危内容命中项 |
+| `mail_push_event` | 高优先或高危推送事件 |
+| `intelligence_plugin` | 智能分析插件版本和状态 |
 | `contact` | 联系人 |
 | `login_audit` | 登录审计 |
 
@@ -136,6 +140,76 @@ CREATE TABLE mail_attachment (
   KEY idx_attachment_message (message_id)
 );
 
+CREATE TABLE mail_intelligence_result (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  spam_label VARCHAR(32) NOT NULL DEFAULT 'unknown',
+  spam_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  priority_label VARCHAR(32) NOT NULL DEFAULT 'normal',
+  priority_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  risk_level VARCHAR(32) NOT NULL DEFAULT 'none',
+  risk_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  action_json JSON,
+  reason_json JSON,
+  plugin_name VARCHAR(128) NOT NULL,
+  plugin_version VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'success',
+  error_message VARCHAR(512),
+  analyzed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_intelligence_message (message_id),
+  KEY idx_intelligence_user_priority (user_id, priority_label),
+  KEY idx_intelligence_user_risk (user_id, risk_level),
+  KEY idx_intelligence_user_spam (user_id, spam_label)
+);
+
+CREATE TABLE mail_threat_indicator (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  intelligence_result_id BIGINT NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  value VARCHAR(1024) NOT NULL,
+  risk_level VARCHAR(32) NOT NULL,
+  reason VARCHAR(512),
+  rule_id VARCHAR(128),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_threat_message (message_id),
+  KEY idx_threat_user_risk (user_id, risk_level),
+  KEY idx_threat_type (type)
+);
+
+CREATE TABLE mail_push_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  event_type VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content VARCHAR(512),
+  priority VARCHAR(32) NOT NULL DEFAULT 'normal',
+  read_flag TINYINT NOT NULL DEFAULT 0,
+  pushed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_push_user_read_time (user_id, read_flag, created_at),
+  KEY idx_push_message (message_id)
+);
+
+CREATE TABLE intelligence_plugin (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(128) NOT NULL,
+  version VARCHAR(64) NOT NULL,
+  runtime VARCHAR(32) NOT NULL DEFAULT 'python-native',
+  artifact_path VARCHAR(512) NOT NULL,
+  checksum VARCHAR(128),
+  enabled TINYINT NOT NULL DEFAULT 1,
+  timeout_ms INT NOT NULL DEFAULT 2000,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_plugin_name_version (name, version)
+);
+
 CREATE TABLE contact (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
@@ -170,4 +244,7 @@ CREATE TABLE login_audit (
 - 收件人类型：`to`、`cc`、`bcc`。
 - 文件夹类型：`inbox`、`sent`、`draft`、`trash`、`spam`、`custom`。
 - 附件 `storage_type`：`local` 或 `minio`。
-
+- 垃圾邮件标签：`normal`、`spam`、`unknown`。
+- 优先级标签：`low`、`normal`、`high`。
+- 风险等级：`none`、`low`、`medium`、`high`、`critical`。
+- 智能分析状态：`success`、`failed`、`timeout`、`skipped`。

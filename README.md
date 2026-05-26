@@ -32,6 +32,7 @@ email-system/
 - [数据库设计草案](docs/04-database-schema.md)
 - [部署与 Docker 说明](docs/05-deployment.md)
 - [开发任务拆分建议](docs/06-roadmap.md)
+- [智能邮件管理模块设计](docs/07-intelligent-mail-management.md)
 
 ## 开发约定
 
@@ -40,4 +41,3 @@ email-system/
 3. 功能分支从 `develop` 切出：`feature/<module>-<description>`
 4. 修复分支从 `develop` 或 `main` 切出：`fix/<issue>-<description>`
 5. 提交前至少完成本地构建、静态检查和相关接口自测。
-

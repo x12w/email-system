@@ -57,6 +57,7 @@ pnpm dev
 - Lombok
 - MinIO Java SDK
 - Flyway 或 Liquibase
+- JNA 或 JNI 封装，用于加载智能分析动态库插件
 
 建议包名：`com.example.emailsystem`。
 
@@ -81,6 +82,20 @@ application-prod.yml
 | `storage.type` | `local` 或 `minio` |
 | `storage.local.root-path` | 本地附件存储目录 |
 | `storage.minio.*` | MinIO 连接和桶 |
+| `intelligence.plugin.*` | 智能邮件分析插件配置 |
+
+## Python 智能插件开发建议
+
+智能邮件管理的 Python 代码放在 `plugins/intelligence/python/`。开发阶段先保证 `analyze_email_json(request_json)` 的 JSON 输入输出稳定，再考虑打包为 `.dll`、`.so` 或 `.dylib`。
+
+本地调试建议：
+
+```bash
+cd plugins/intelligence/python
+python -m pytest
+```
+
+打包产物统一放到 `plugins/intelligence/native/`，由后端配置项 `intelligence.plugin.artifact-path` 指向具体文件。插件不可用时，后端应将分析状态记录为 `failed` 或 `timeout`，不能阻断邮件入库。
 
 ## 联调顺序
 
@@ -106,4 +121,3 @@ pnpm build
 mvn test
 mvn package
 ```
-
