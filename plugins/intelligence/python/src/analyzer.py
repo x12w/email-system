@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 # 从 keywords.py 加载关键词词库（数据存放在 data/ 目录下的 JSON 文件中）
@@ -30,6 +31,28 @@ class RuleHit:
     value: str
     risk_level: str
     reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """把 RuleHit 转成字段名符合接口规范的字典。
+
+        接口文档要求使用 camelCase（驼峰命名），比如 riskLevel，
+        但 Python 中习惯用 snake_case（下划线命名）。
+        这个方法在序列化时做一次映射转换。
+
+        Returns:
+            {
+                "type":     风险类型
+                "value":    风险内容
+                "riskLevel": 风险等级（注意是大写 L，不是下划线）
+                "reason":   风险原因
+            }
+        """
+        return {
+            "type": self.type,
+            "value": self.value,
+            "riskLevel": self.risk_level,
+            "reason": self.reason,
+        }
 
 
 # frozenset 和 set 类似，都是"集合"，但 frozenset 是不可变的。
@@ -104,99 +127,130 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
     分析四个方面：
     1. 是否为垃圾邮件（spam）
     2. 是否为高优先级邮件（含紧急关键词等）
-    3. 是否存在安全风险（恶意链接、可疑附件、发件人伪造）
+    3. 是否存在安全风险（恶意链接、可疑附件、发件人伪造、HTML 隐藏内容）
     4. 根据分析结果，决定需要采取什么行动（如推送通知、安全警报）
 
+    字段名遵循接口文档约定：
+    - 输入：messageId、from、to、subject、plainText、html、links、attachments、locale
+    - 输出：spam.label、priority.label、risk.level、risk.indicators[].riskLevel
+
     Args:
-        payload: 传入的邮件数据，是一个字典，包含以下字段：
-            - subject: 邮件主题
-            - plainText: 邮件正文（纯文本格式）
-            - links: 邮件中包含的链接列表
-            - attachments: 邮件附件列表
-            - from: 发件人邮箱地址
-            - fromName: 发件人显示名称
+        payload: 传入的邮件数据字典，支持以下字段：
+            - requestId:  请求 ID（原样回传）
+            - messageId:  邮件 ID（原样回传）
+            - from:       发件人邮箱地址
+            - to:         收件人地址列表
+            - subject:    邮件主题
+            - plainText:  邮件正文（纯文本）
+            - html:       邮件正文（HTML 格式）
+            - links:      邮件中的链接列表
+            - attachments:邮件附件列表
+            - locale:     语言区域（如 "zh-CN"）
 
     Returns:
-        分析结果字典，包含 spam（垃圾邮件评分）、priority（优先级评分）、
-        risk（安全风险评分）和 actions（建议采取的行动）。
+        分析结果字典，包含 pluginVersion、analyzedAt、spam、priority、
+        risk 和 actions 等字段。
     """
-    # 从传入的邮件数据中提取各个字段
-    # str(payload.get("subject") or "") 这种写法：
-    #   1. payload.get("subject") 从字典中取 subject 字段
-    #   2. or "" 确保如果取出来是 None 或空字符串，就用 "" 代替
-    #   3. str(...) 确保结果一定是字符串
+    # ========== 提取输入字段 ==========
+    request_id = payload.get("requestId") or ""
+    message_id = payload.get("messageId") or 0
     subject = str(payload.get("subject") or "")
     plain_text = str(payload.get("plainText") or "")
+    html_content = str(payload.get("html") or "")
     links = payload.get("links") or []
     attachments = payload.get("attachments") or []
     from_addr = str(payload.get("from") or "")
     from_name = str(payload.get("fromName") or "")
+    to_addrs = payload.get("to") or []
+    locale = str(payload.get("locale") or "")
 
     # 把邮件主题和正文拼接在一起转小写，方便统一做关键词匹配
-    text = f"{subject}\n{plain_text}".lower()
+    # 如果有 HTML 内容，也一并提取纯文本后加入分析
+    combined_text = subject
+    if plain_text:
+        combined_text += "\n" + plain_text
+    if html_content:
+        # 简单去除 HTML 标签，提取可见文本
+        plain_from_html = re.sub(r"<[^>]+>", " ", html_content)
+        plain_from_html = re.sub(r"\s+", " ", plain_from_html).strip()
+        combined_text += "\n" + plain_from_html
+    text = combined_text.lower()
 
-    # 第一步：检测高优先级关键词（紧急事件、合同审批等）
-    # 使用加权关键词评分，_HIGH_PRIORITY_KEYWORDS 里每个分类的权重不同
+    # ========== 关键词评分 ==========
     high_priority_score = _score_weighted_keywords(text, _HIGH_PRIORITY_KEYWORDS)
-
-    # 第二步：检测垃圾邮件关键词（广告、抽奖、免费等）
     spam_score = _score_weighted_keywords(text, _SPAM_KEYWORDS)
 
-    # 第三步：分别检测各类安全风险，把结果收集到 indicators 列表里
+    # ========== 风险检测 ==========
     indicators: list[RuleHit] = []
-    indicators.extend(_detect_link_risks(links))                # 检测恶意链接
-    indicators.extend(_detect_attachment_risks(attachments))   # 检测可疑附件
-    indicators.extend(_detect_sender_spoofing(from_addr, from_name))  # 检测发件人伪造
-    indicators.extend(_detect_phishing_text(text))              # 检测邮件文本中的钓鱼话术
+    indicators.extend(_detect_link_risks(links))
+    indicators.extend(_detect_attachment_risks(attachments))
+    indicators.extend(_detect_sender_spoofing(from_addr, from_name))
+    indicators.extend(_detect_phishing_text(text))
+    indicators.extend(_detect_html_risks(html_content))
 
-    # 计算总体风险分数
-    # 思路：每发现一个风险指标（indicator），风险分增加 0.25，
-    # 最多加到 1.0（min(1.0, ...) 的作用就是封顶）。
+    # ========== 风险评分 ==========
     risk_score = min(1.0, 0.25 * len(indicators))
-
-    # 根据风险分数划分风险等级
-    risk_level = "none"      # 无风险
     if risk_score >= 0.75:
-        risk_level = "high"  # 高风险：3个及以上指标
+        risk_level = "high"
     elif risk_score >= 0.5:
-        risk_level = "medium"  # 中风险：2个指标
+        risk_level = "medium"
     elif risk_score > 0:
-        risk_level = "low"   # 低风险：1个指标
+        risk_level = "low"
+    else:
+        risk_level = "none"
 
-    # 判断优先级和垃圾邮件标签（用分数和阈值比较）
-    priority_label = "high" if high_priority_score >= 0.5 else "normal"
+    # ========== 标签判定 ==========
+    # 优先级标签：文档要求 three levels — low / normal / high
+    if high_priority_score >= 0.5:
+        priority_label = "high"
+        # 根据分数高低给出具体的理由说明
+        if high_priority_score >= 0.8:
+            priority_reasons = ["邮件包含紧急关键词，建议立即查看"]
+        else:
+            priority_reasons = ["邮件包含重要关键词，需要关注"]
+    elif high_priority_score >= 0.1:
+        priority_label = "normal"
+        priority_reasons = []
+    else:
+        priority_label = "low"
+        priority_reasons = []
+
+    # 垃圾邮件标签
     spam_label = "spam" if spam_score >= 0.6 else "normal"
 
-    # 第四步：根据分析结果决定需要采取什么行动
+    # ========== 行动决策 ==========
     actions: list[str] = []
-
-    # 如果是高优先级且不是垃圾邮件 → 标记为重要并推送通知
     if priority_label == "high" and spam_label != "spam":
         actions.append("mark_high_priority")
         actions.append("push_notification")
-
-    # 如果风险等级达到 high 以上 → 推送安全警报
     if risk_level in {"high", "critical"}:
         actions.append("push_security_alert")
 
-    # 返回最终结果（字典格式）
-    return {
-        "pluginVersion": "0.1.0",  # 插件版本号
+    # ========== 构建返回结果 ==========
+    result: dict[str, Any] = {
+        "pluginVersion": "0.1.0",
+        "analyzedAt": datetime.now(timezone.utc).isoformat(),
         "spam": {"label": spam_label, "score": spam_score},
         "priority": {
             "label": priority_label,
             "score": high_priority_score,
-            # 只有当标记为高优先级时，才给出理由
-            "reasons": ["keyword match"] if priority_label == "high" else [],
+            "reasons": priority_reasons,
         },
         "risk": {
             "level": risk_level,
             "score": risk_score,
-            # RuleHit 对象的 __dict__ 属性可以把它转成字典
-            "indicators": [hit.__dict__ for hit in indicators],
+            "indicators": [hit.to_dict() for hit in indicators],
         },
         "actions": actions,
     }
+
+    # 原样回传 requestId 和 messageId，方便 Java 后端做请求追踪
+    if request_id:
+        result["requestId"] = request_id
+    if message_id:
+        result["messageId"] = message_id
+
+    return result
 
 
 def _score_keywords(text: str, keywords: list[str]) -> float:
@@ -348,7 +402,7 @@ def _looks_like_ip_url(link: str) -> bool:
 
     return True
 
-
+#attachment是邮件的附件，后面的是这个参数的注解，代表要输入一个rulehit（字典类型）类型的列表
 def _detect_attachment_risks(attachments: list[Any]) -> list[RuleHit]:
     """检测邮件附件是否存在安全风险。
 
@@ -527,6 +581,53 @@ def _detect_phishing_text(text: str) -> list[RuleHit]:
                     "phishing", keyword, level,
                     f"邮件文本包含钓鱼话术：'{keyword}'",
                 ))
+
+    return hits
+
+
+def _detect_html_risks(html_content: str) -> list[RuleHit]:
+    """检测 HTML 邮件内容中的安全风险。
+
+    接口文档要求分析 HTML 正文，因此这个函数专门处理 HTML 相关的检测：
+    1. 隐藏内容：使用 display:none 等 CSS 隐藏的文字（常用于垃圾邮件）
+    2. 跟踪像素：1x1 像素的透明图片（用于追踪用户是否打开邮件）
+    3. 外部图片：加载外部图片可能泄露用户 IP 和阅读行为
+
+    Args:
+        html_content: 邮件的 HTML 正文
+
+    Returns:
+        风险指标列表
+    """
+    hits: list[RuleHit] = []
+    if not html_content:
+        return hits
+
+    html_lower = html_content.lower()
+
+    # 检查 1：隐藏内容（display:none 或 visibility:hidden）
+    # 垃圾邮件经常把一段文字隐藏起来，只让关键词被检测到
+    if "display:none" in html_lower or "visibility:hidden" in html_lower:
+        hits.append(RuleHit(
+            "html", "hidden_content", "medium",
+            "HTML 中包含 CSS 隐藏的文本内容",
+        ))
+
+    # 检查 2：检测跟踪像素（1x1 像素的图片）
+    # 正则匹配 <img ... width="1" height="1" ...>
+    if re.search(r'width\s*=\s*["\']?\s*1\s*["\']?\s+height\s*=\s*["\']?\s*1\s*["\']?', html_lower):
+        hits.append(RuleHit(
+            "html", "tracking_pixel", "low",
+            "邮件包含跟踪像素（1×1 透明图片），可能用于追踪阅读行为",
+        ))
+
+    # 检查 3：统计外部图片数量，超过一定数量视为可疑
+    img_count = len(re.findall(r'<img[^>]+src\s*=\s*["\']https?://', html_lower))
+    if img_count > 3:
+        hits.append(RuleHit(
+            "html", "external_images", "low",
+            f"邮件包含 {img_count} 个外部图片链接，可能泄露阅读行为",
+        ))
 
     return hits
 

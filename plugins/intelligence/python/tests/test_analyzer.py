@@ -536,7 +536,7 @@ class TestAnalyzeEmailIntegration:
             "attachments": [{"filename": "notes.pdf"}],
         })
         assert result["spam"]["label"] == "normal"
-        assert result["priority"]["label"] == "normal"
+        assert result["priority"]["label"] == "low"
         assert result["risk"]["level"] == "none"
         assert result["actions"] == []
 
@@ -582,7 +582,7 @@ class TestAnalyzeEmailIntegration:
         })
         assert result["risk"]["level"] in ("low", "medium", "high")
         assert any(
-            ind["type"] == "attachment" and ind["risk_level"] == "high"
+            ind["type"] == "attachment" and ind["riskLevel"] == "high"
             for ind in result["risk"]["indicators"]
         )
 
@@ -615,7 +615,7 @@ class TestAnalyzeEmailIntegration:
         """缺少字段不应导致异常"""
         result = analyze_email({})
         assert result["spam"]["label"] == "normal"
-        assert result["priority"]["label"] == "normal"
+        assert result["priority"]["label"] == "low"
         assert result["risk"]["level"] == "none"
 
     def test_realistic_normal(self):
@@ -629,7 +629,7 @@ class TestAnalyzeEmailIntegration:
             "attachments": [{"filename": "Q2_进度报告.xlsx"}],
         })
         assert result["spam"]["label"] == "normal"
-        assert result["priority"]["label"] == "normal"
+        assert result["priority"]["label"] == "low"
         assert result["risk"]["level"] == "none"
         assert result["actions"] == []
 
