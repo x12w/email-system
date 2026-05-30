@@ -6,13 +6,13 @@
 
 ### 1.1 文档目的
 
-项目目前已有完整的数据库表设计（[V2__create_full_tables.sql](../backend/src/main/resources/db/migration/V2__create_full_tables.sql)，共 10 张表）和 API 接口清单（[03-frontend-backend-contract.md](03-frontend-backend-contract.md)，共 32 个端点），但缺少一份将两者精确对齐的协同文档。本文档填补这一空白，确保前后端开发时字段命名、类型、校验规则保持一致。
+项目目前已有完整的数据库表设计（[V1__init_schema.sql](../backend/src/main/resources/db/migration/V1__init_schema.sql) + [V2__create_full_tables.sql](../backend/src/main/resources/db/migration/V2__create_full_tables.sql)，共 14 张表）和 API 接口清单（[03-frontend-backend-contract.md](03-frontend-backend-contract.md)，共 32 个端点），但缺少一份将两者精确对齐的协同文档。本文档填补这一空白，确保前后端开发时字段命名、类型、校验规则保持一致。
 
 ### 1.2 引用依赖
 
 | 依赖文档 | 用途 |
 |----------|------|
-| [V2__create_full_tables.sql](../backend/src/main/resources/db/migration/V2__create_full_tables.sql) | 数据库表结构权威来源 |
+| [V1__init_schema.sql](../backend/src/main/resources/db/migration/V1__init_schema.sql) + [V2__create_full_tables.sql](../backend/src/main/resources/db/migration/V2__create_full_tables.sql) | 数据库表结构权威来源 |
 | [03-frontend-backend-contract.md](03-frontend-backend-contract.md) | API 端点与响应格式规范 |
 | [08-redis-cache-design.md](08-redis-cache-design.md) | Redis 缓存结构与字段定义 |
 
@@ -28,8 +28,12 @@
 | 6 | `mail_message` | 邮件主表 | `/api/messages/*` 接口 |
 | 7 | `mail_recipient` | 邮件收件人表 | 内嵌在邮件详情/发送接口 |
 | 8 | `mail_attachment` | 邮件附件表 | `/api/attachments/*` 接口 |
-| 9 | `contact` | 联系人表 | `/api/contacts/*` 接口 |
-| 10 | `login_audit` | 登录审计表 | 内部记录，不直接暴露 API |
+| 9 | `mail_intelligence_result` | 智能分析结果表 | `/api/intelligence/*` 接口（规划中） |
+| 10 | `mail_threat_indicator` | 威胁指标记录表 | 内嵌在智能分析结果中 |
+| 11 | `mail_push_event` | 高优先级推送记录表 | `/api/push-events/*` 接口（规划中） |
+| 12 | `intelligence_plugin` | 智能插件注册表 | `/api/intelligence/plugins/*` 接口（规划中） |
+| 13 | `contact` | 联系人表 | `/api/contacts/*` 接口 |
+| 14 | `login_audit` | 登录审计表 | 内部记录，不直接暴露 API |
 
 ---
 
@@ -385,7 +389,7 @@ INSERT INTO sys_role (code, name, description) VALUES
 | `account_id` | `BIGINT` | 是 | `accountId` | `number` | 所属账号 ID |
 | `folder_id` | `BIGINT` | 否 | `folderId` | `number` | 当前所在文件夹 ID |
 | `message_uid` | `VARCHAR(255)` | 否 | `messageUid` | `string` | IMAP 消息 UID |
-| `message_id_header` | `VARCHAR(512)` | 否 | `messageIdHeader` | `string` | RFC 5322 Message-ID 头 |
+| `message_id` | `VARCHAR(512)` | 否 | `messageId` | `string` | RFC 5322 Message-ID 头 |
 | `from_address` | `VARCHAR(255)` | 是 | `fromAddress` | `string` | 发件人邮箱地址 |
 | `from_name` | `VARCHAR(255)` | 否 | `fromName` | `string` | 发件人显示名称 |
 | `subject` | `VARCHAR(512)` | 否 | `subject` | `string` | 邮件主题 |
@@ -416,7 +420,7 @@ INSERT INTO sys_role (code, name, description) VALUES
         "accountId": 1,
         "folderId": 5,
         "messageUid": "14285",
-        "messageIdHeader": "<20260517115500.abc@mail.example.com>",
+        "messageId": "<20260517115500.abc@mail.example.com>",
         "fromAddress": "alice@example.com",
         "fromName": "Alice",
         "subject": "会议纪要",
@@ -451,7 +455,7 @@ INSERT INTO sys_role (code, name, description) VALUES
     "accountId": 1,
     "folderId": 5,
     "messageUid": "14285",
-    "messageIdHeader": "<20260517115500.abc@mail.example.com>",
+    "messageId": "<20260517115500.abc@mail.example.com>",
     "fromAddress": "alice@example.com",
     "fromName": "Alice",
     "subject": "会议纪要",
@@ -735,6 +739,111 @@ INSERT INTO sys_role (code, name, description) VALUES
 
 ---
 
+### 3.11 mail_intelligence_result — 智能分析结果表
+
+**关联 API：** `/api/intelligence/*` 接口（规划中）。分析结果通过邮件详情接口的扩展字段暴露。
+
+**字段映射表：**
+
+| DB 列 | DB 类型 | 必填 | API 字段 | JSON 类型 | 说明 |
+|-------|---------|------|---------|----------|------|
+| `id` | `BIGINT` | 是 | — | — | 不暴露 |
+| `user_id` | `BIGINT` | 是 | — | — | 从认证上下文获取 |
+| `message_id` | `BIGINT` | 是 | `messageId` | `number` | 关联邮件 ID |
+| `spam_label` | `VARCHAR(32)` | 是 | `spamLabel` | `string` | 垃圾标签：normal/spam/unknown |
+| `spam_score` | `DECIMAL(5,4)` | 是 | `spamScore` | `number` | 垃圾评分（0-1） |
+| `priority_label` | `VARCHAR(32)` | 是 | `priorityLabel` | `string` | 优先级标签：low/normal/high |
+| `priority_score` | `DECIMAL(5,4)` | 是 | `priorityScore` | `number` | 优先级评分（0-1） |
+| `risk_level` | `VARCHAR(32)` | 是 | `riskLevel` | `string` | 风险等级：none/low/medium/high/critical |
+| `risk_score` | `DECIMAL(5,4)` | 是 | `riskScore` | `number` | 风险评分（0-1） |
+| `action_json` | `JSON` | 否 | `actions` | `object` | 建议操作（JSON 对象） |
+| `reason_json` | `JSON` | 否 | `reasons` | `object` | 分析依据（JSON 对象） |
+| `plugin_name` | `VARCHAR(128)` | 是 | `pluginName` | `string` | 分析插件名称 |
+| `plugin_version` | `VARCHAR(64)` | 是 | `pluginVersion` | `string` | 插件版本号 |
+| `status` | `VARCHAR(32)` | 是 | `status` | `string` | success/failed/timeout/skipped |
+| `error_message` | `VARCHAR(512)` | 否 | `errorMessage` | `string` | 失败原因（仅 status≠success 时） |
+| `analyzed_at` | `DATETIME(3)` | 是 | `analyzedAt` | `string` | 分析完成时间 |
+| `created_at` | `DATETIME(3)` | 是 | `createdAt` | `string` | 创建时间 |
+| `updated_at` | `DATETIME(3)` | 是 | `updatedAt` | `string` | 更新时间 |
+
+> 约束：每个 `message_id` 唯一（`uk_intelligence_message`），即每封邮件最多有一条分析结果。
+
+---
+
+### 3.12 mail_threat_indicator — 威胁指标记录表
+
+**关联 API：** 无独立端点。威胁指标内嵌在智能分析结果中返回。
+
+**字段映射表：**
+
+| DB 列 | DB 类型 | 必填 | API 字段 | JSON 类型 | 说明 |
+|-------|---------|------|---------|----------|------|
+| `id` | `BIGINT` | 是 | — | — | 不暴露 |
+| `user_id` | `BIGINT` | 是 | — | — | 从认证上下文获取 |
+| `message_id` | `BIGINT` | 是 | — | — | 从分析上下文获取 |
+| `intelligence_result_id` | `BIGINT` | 是 | — | — | 关联分析结果 |
+| `type` | `VARCHAR(32)` | 是 | `type` | `string` | 指标类型（url/domain/ip/hash/keyword） |
+| `value` | `VARCHAR(1024)` | 是 | `value` | `string` | 命中具体值 |
+| `risk_level` | `VARCHAR(32)` | 是 | `riskLevel` | `string` | 风险等级 |
+| `reason` | `VARCHAR(512)` | 否 | `reason` | `string` | 命中原因说明 |
+| `rule_id` | `VARCHAR(128)` | 否 | `ruleId` | `string` | 命中规则 ID |
+| `created_at` | `DATETIME(3)` | 是 | `createdAt` | `string` | 命中时间 |
+
+---
+
+### 3.13 mail_push_event — 高优先级推送记录表
+
+**关联 API：** `/api/push-events/*` 接口（规划中）。
+
+**字段映射表：**
+
+| DB 列 | DB 类型 | 必填 | API 字段 | JSON 类型 | 说明 |
+|-------|---------|------|---------|----------|------|
+| `id` | `BIGINT` | 是 | `id` | `number` | 事件主键 |
+| `user_id` | `BIGINT` | 是 | — | — | 从认证上下文获取 |
+| `message_id` | `BIGINT` | 是 | `messageId` | `number` | 关联邮件 ID |
+| `event_type` | `VARCHAR(64)` | 是 | `eventType` | `string` | 事件类型 |
+| `title` | `VARCHAR(255)` | 是 | `title` | `string` | 推送标题 |
+| `content` | `VARCHAR(512)` | 否 | `content` | `string` | 推送内容摘要 |
+| `priority` | `VARCHAR(32)` | 是 | `priority` | `string` | normal/high/urgent |
+| `read_flag` | `TINYINT(1)` | 是 | `readFlag` | `boolean` | 已读标记 |
+| `pushed_at` | `DATETIME(3)` | 否 | `pushedAt` | `string` | 推送时间 |
+| `created_at` | `DATETIME(3)` | 是 | `createdAt` | `string` | 创建时间 |
+
+**列表查询参数（GET /api/push-events）：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `read` | `boolean` | 否 | 按已读/未读筛选 |
+| `priority` | `string` | 否 | 按优先级筛选 |
+| `page` | `number` | 否 | 页码，从 1 开始 |
+| `size` | `number` | 否 | 每页条数，默认 20 |
+
+---
+
+### 3.14 intelligence_plugin — 智能插件注册表
+
+**关联 API：** `/api/intelligence/plugins/*` 接口（规划中）。
+
+**字段映射表：**
+
+| DB 列 | DB 类型 | 必填 | API 字段 | JSON 类型 | 说明 |
+|-------|---------|------|---------|----------|------|
+| `id` | `BIGINT` | 是 | `id` | `number` | 插件主键 |
+| `name` | `VARCHAR(128)` | 是 | `name` | `string` | 插件名称 |
+| `version` | `VARCHAR(64)` | 是 | `version` | `string` | 插件版本 |
+| `runtime` | `VARCHAR(32)` | 是 | `runtime` | `string` | 运行环境（python-native 等） |
+| `artifact_path` | `VARCHAR(512)` | 是 | — | — | 制品路径（后端内部使用） |
+| `checksum` | `VARCHAR(128)` | 否 | — | — | 制品校验和（后端内部使用） |
+| `enabled` | `TINYINT(1)` | 是 | `enabled` | `boolean` | 启用状态 |
+| `timeout_ms` | `INT` | 是 | `timeoutMs` | `number` | 分析超时（毫秒） |
+| `created_at` | `DATETIME(3)` | 是 | `createdAt` | `string` | 注册时间 |
+| `updated_at` | `DATETIME(3)` | 是 | `updatedAt` | `string` | 更新时间 |
+
+> 约束：`name` + `version` 组合唯一（`uk_plugin_name_version`）。
+
+---
+
 ## 4. 枚举值对照表
 
 ### 4.1 用户状态 — `sys_user.status`
@@ -790,6 +899,59 @@ INSERT INTO sys_role (code, name, description) VALUES
 |-----------|------|------|
 | `text` | 纯文本 | `text/plain` |
 | `html` | HTML 富文本 | `text/html`，默认值 |
+
+### 4.7 垃圾邮件标签 — `mail_intelligence_result.spam_label`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `normal` | 正常邮件 | 非垃圾邮件 |
+| `spam` | 垃圾邮件 | 广告/推广/欺诈 |
+| `unknown` | 未判定 | 分析未完成或置信度不足 |
+
+### 4.8 优先级标签 — `mail_intelligence_result.priority_label`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `low` | 低优先级 | 可稍后处理 |
+| `normal` | 普通优先级 | 常规处理 |
+| `high` | 高优先级 | 需及时关注 |
+
+### 4.9 风险等级 — `mail_intelligence_result.risk_level` / `mail_threat_indicator.risk_level`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `none` | 无风险 | 安全邮件 |
+| `low` | 低风险 | 可疑但威胁较低 |
+| `medium` | 中风险 | 需人工复核 |
+| `high` | 高风险 | 疑似攻击/钓鱼 |
+| `critical` | 严重风险 | 确认恶意邮件 |
+
+### 4.10 智能分析状态 — `mail_intelligence_result.status`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `success` | 分析成功 | 插件正常完成分析 |
+| `failed` | 分析失败 | 插件执行报错 |
+| `timeout` | 分析超时 | 超过插件 timeout_ms |
+| `skipped` | 已跳过 | 如邮件过大或格式不支持 |
+
+### 4.11 威胁指标类型 — `mail_threat_indicator.type`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `url` | 恶意 URL | 钓鱼/恶意链接 |
+| `domain` | 恶意域名 | 可疑域名/IP 跳转 |
+| `ip` | 恶意 IP | C2 服务器等 |
+| `hash` | 恶意文件哈希 | 附件/内嵌文件哈希 |
+| `keyword` | 高危关键词 | 欺诈/勒索关键词 |
+
+### 4.12 推送优先级 — `mail_push_event.priority`
+
+| DB/API 值 | 含义 | 说明 |
+|-----------|------|------|
+| `normal` | 普通 | 一般通知 |
+| `high` | 高优先级 | 重要事件 |
+| `urgent` | 紧急 | 需立即处理 |
 
 ---
 
@@ -916,5 +1078,5 @@ mybatis-plus:
 1. 缓存 MISS → 查询 DB → 回填缓存 → 返回数据
 2. 写操作 → 先更新 DB → 再删除/失效对应缓存键
 3. 文件夹同步 → 全量失效该用户的文件夹统计 + 邮件列表 + 未读计数
-4. 登录 → 触发缓存预热（见 09-redis-cache-design.md 第 10 节）
+4. 登录 → 触发缓存预热（见 08-redis-cache-design.md 第 10 节）
 ```

@@ -23,17 +23,17 @@ mail:{模块}:{实体}:{标识符}
 
 ## 2. 邮件列表缓存（按文件夹分页）
 
-**数据结构：** 有序集合  
-**键：** `mail:message:list:{user_id}:{folder_id}`  
-**Score（分数）：** `received_at` 转换为毫秒级时间戳  
-**Member（成员）：** 邮件摘要 JSON（id、subject、from_address、from_name、read_flag、star_flag、attachment_count、received_at）  
+**数据结构：** 有序集合
+**键：** `mail:message:list:{user_id}:{folder_id}`
+**Score（分数）：** `received_at` 转换为毫秒级时间戳
+**Member（成员）：** 邮件摘要 JSON（id、subject、from_address、from_name、read_flag、star_flag、attachment_count、received_at）
 **过期时间：** 30 分钟
 
 ### 写入（新邮件到达或 MUA 同步时）
 
 ```redis
 -- 将邮件添加到对应文件夹的有序集合中
-ZADD mail:message:list:1001:5 1715961600000 '{"id":5001,"subject":"Meeting Notes","from_address":"alice@example.com","from_name":"Alice","read_flag":0,"star_flag":0,"attachment_count":2,"received_at":"2024-05-17T12:00:00Z"}'
+ZADD mail:message:list:1001:5 1715961600000 '{"id":5001,"subject":"Meeting Notes","from_address":"alice@example.com","from_name":"Alice","read_flag":0,"star_flag":0,"attachment_count":2,"received_at":"2026-05-17T12:00:00+08:00"}'
 
 -- 重置过期时间
 EXPIRE mail:message:list:1001:5 1800
@@ -69,9 +69,9 @@ ZREMRANGEBYRANK mail:message:list:1001:5 0 -1001
 
 ## 3. 未读计数缓存
 
-**数据结构：** 哈希  
-**键：** `mail:unread:counts:{user_id}`  
-**字段：** `folder_id` → 未读数量（整数）  
+**数据结构：** 哈希
+**键：** `mail:unread:counts:{user_id}`
+**字段：** `folder_id` → 未读数量（整数）
 **过期时间：** 5 分钟
 
 ### 写入（已读/未读切换或新邮件到达后）
@@ -103,9 +103,9 @@ HGETALL mail:unread:counts:1001
 
 ## 4. 用户会话缓存
 
-**数据结构：** 字符串（JSON）  
-**键：** `session:user:{user_id}`  
-**值：** 包含用户信息、角色编码和权限列表的 JSON  
+**数据结构：** 字符串（JSON）
+**键：** `session:user:{user_id}`
+**值：** 包含用户信息、角色编码和权限列表的 JSON
 **过期时间：** 24 小时（与 JWT 过期时间对齐）
 
 ### 写入（登录 / Token 刷新时）
@@ -130,9 +130,9 @@ DEL session:user:1001
 
 ## 5. 文件夹统计缓存
 
-**数据结构：** 哈希  
-**键：** `mail:folder:stats:{user_id}`  
-**字段：** `folder_id` → JSON `{"total_count":N,"unread_count":N,"name":"文件夹名称","type":"inbox"}`  
+**数据结构：** 哈希
+**键：** `mail:folder:stats:{user_id}`
+**字段：** `folder_id` → JSON `{"total_count":N,"unread_count":N,"name":"文件夹名称","type":"inbox"}`
 **过期时间：** 10 分钟
 
 ### 写入（同步后全量刷新）
@@ -167,15 +167,15 @@ DEL mail:folder:stats:1001
 
 ## 6. 邮件详情缓存
 
-**数据结构：** 字符串（JSON）  
-**键：** `mail:message:detail:{message_id}`  
-**值：** 邮件完整 JSON（邮件头、正文、收件人、附件元数据）  
+**数据结构：** 字符串（JSON）
+**键：** `mail:message:detail:{message_id}`
+**值：** 邮件完整 JSON（邮件头、正文、收件人、附件元数据）
 **过期时间：** 1 小时
 
 ### 写入（从数据库读取邮件时）
 
 ```redis
-SET mail:message:detail:5001 '{"id":5001,"from_address":"alice@example.com","from_name":"Alice","subject":"会议纪要","content":"<html>...</html>","content_type":"html","sent_at":"2024-05-17T11:55:00Z","received_at":"2024-05-17T12:00:00Z","read_flag":0,"star_flag":0,"attachments":[{"id":201,"original_name":"notes.pdf","size_bytes":102400,"content_type":"application/pdf"}],"recipients":[{"type":"to","email_address":"bob@example.com","display_name":"Bob"}]}' EX 3600
+SET mail:message:detail:5001 '{"id":5001,"from_address":"alice@example.com","from_name":"Alice","subject":"会议纪要","content":"<html>...</html>","content_type":"html","sent_at":"2026-05-17T11:55:00+08:00","received_at":"2026-05-17T12:00:00+08:00","read_flag":0,"star_flag":0,"attachments":[{"id":201,"original_name":"notes.pdf","size_bytes":102400,"content_type":"application/pdf"}],"recipients":[{"type":"to","email_address":"bob@example.com","display_name":"Bob"}]}' EX 3600
 ```
 
 ### 读取（邮件详情页面）
@@ -197,10 +197,10 @@ DEL mail:message:detail:5001
 
 ## 7. 登录限流
 
-**数据结构：** 有序集合（滑动窗口）  
-**键：** `ratelimit:login:{ip_address}`  
-**Score（分数）：** 当前毫秒级时间戳（member 值可任意，此处使用时间戳作为唯一成员）  
-**窗口：** 15 分钟  
+**数据结构：** 有序集合（滑动窗口）
+**键：** `ratelimit:login:{ip_address}`
+**Score（分数）：** 当前毫秒级时间戳（member 值可任意，此处使用时间戳作为唯一成员）
+**窗口：** 15 分钟
 **限制：** 每个 IP 每 15 分钟最多 20 次尝试
 
 ### 检查并记录尝试（Lua 脚本）

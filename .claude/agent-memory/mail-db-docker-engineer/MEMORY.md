@@ -1,2 +1,0 @@
-- [Schema Design Patterns](schema-design-patterns.md) — MySQL 8.0 DDL conventions, index naming, FK cascade rules, and seed data for the email system
-- [Redis Cache Patterns](redis-cache-patterns.md) — Key naming, TTL values, data structure choices, and invalidation strategies
