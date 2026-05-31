@@ -24,13 +24,16 @@ backend/.env
 data/mysql/*
 data/redis/*
 data/mailpit/*
+data/minio/*
 data/uploads/*
 !data/mysql/.gitkeep
 !data/redis/.gitkeep
 !data/mailpit/.gitkeep
+!data/minio/.gitkeep
 !data/uploads/.gitkeep
 
 # Docker / temp
 *.tmp
 *.pid
-
+.env
+.env.*

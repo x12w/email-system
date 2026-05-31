@@ -32,11 +32,13 @@ backend/
     job/            定时任务，例如邮件同步、清理任务
   src/main/resources/
     mapper/         MyBatis XML
-    db/migration/   数据库迁移脚本
+    db/migration/   数据库迁移脚本（历史参考，生产以 deploy/mysql/init.sql 为准）
 
 deploy/
   nginx/            前端静态资源代理和后端 API 反向代理配置
-  minio/            MinIO 初始化或桶策略配置
+  redis/            Redis 生产配置与 Dockerfile
+  minio/            MinIO 初始化脚本与桶策略配置
+  mysql/            数据库初始化脚本
 
 plugins/
   intelligence/
