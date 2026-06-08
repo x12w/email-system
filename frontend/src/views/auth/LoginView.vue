@@ -9,7 +9,8 @@
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" autocomplete="current-password" />
         </el-form-item>
-        <el-button type="primary" class="login-button" @click="submit">登录</el-button>
+        <el-alert v-if="errorMessage" class="login-error" :title="errorMessage" type="error" show-icon />
+        <el-button type="primary" class="login-button" :loading="loading" @click="submit">登录</el-button>
       </el-form>
     </section>
   </main>
@@ -17,6 +18,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { login } from '@/api/auth'
@@ -26,14 +28,23 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const form = reactive({
-  username: '',
-  password: ''
+  username: 'admin',
+  password: 'password'
 })
+const loading = ref(false)
+const errorMessage = ref('')
 
 async function submit() {
-  const session = await login(form)
-  authStore.setSession(session.accessToken, session.user)
-  await router.push('/')
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const session = await login(form)
+    authStore.setSession(session.accessToken, session.user)
+    await router.push('/')
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '登录失败'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
-
