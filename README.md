@@ -33,6 +33,9 @@ email-system/
 - [部署与 Docker 说明](docs/05-deployment.md)
 - [开发任务拆分建议](docs/06-roadmap.md)
 - [智能邮件管理模块设计](docs/07-intelligent-mail-management.md)
+- [用户使用说明](docs/08-user-guide.md)
+- [管理员使用与运维说明](docs/09-admin-guide.md)
+- [对象存储与附件管理说明](docs/10-object-storage.md)
 
 ## 开发约定
 
