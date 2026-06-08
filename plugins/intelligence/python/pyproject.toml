@@ -17,3 +17,9 @@ include = ["src.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+    "online: 需要网络连接的集成测试，运行 pytest -m 'not online' 跳过",
+    "dns: 需要 DNS 查询能力的测试",
+]

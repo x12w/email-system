@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._version import __version__
+
 from .analyzer import analyze_email
 from .batch_analyzer import (
     analyze_batch_with_config,

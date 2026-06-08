@@ -7,6 +7,7 @@ from typing import Any
 
 # 从 keywords.py 加载关键词词库（数据存放在 data/ 目录下的 JSON 文件中）
 # 这样 analyzer.py 只负责分析逻辑，不会被大量关键词数据撑满
+from ._version import __version__
 from .keywords import _HIGH_PRIORITY_KEYWORDS, _SPAM_KEYWORDS, _PHISHING_KEYWORDS
 
 
@@ -189,8 +190,11 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
     indicators.extend(_detect_html_risks(html_content))
 
     # ========== 风险评分 ==========
+    # 风险等级遵循接口文档 5 级定义：none / low / medium / high / critical
     risk_score = min(1.0, 0.25 * len(indicators))
-    if risk_score >= 0.75:
+    if risk_score >= 0.9:
+        risk_level = "critical"
+    elif risk_score >= 0.75:
         risk_level = "high"
     elif risk_score >= 0.5:
         risk_level = "medium"
@@ -228,7 +232,7 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
 
     # ========== 构建返回结果 ==========
     result: dict[str, Any] = {
-        "pluginVersion": "0.1.0",
+        "pluginVersion": __version__,
         "analyzedAt": datetime.now(timezone.utc).isoformat(),
         "spam": {"label": spam_label, "score": spam_score},
         "priority": {

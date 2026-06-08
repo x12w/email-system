@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from src.reputation import (
@@ -10,6 +8,10 @@ from src.reputation import (
     check_ip_reputation,
 )
 
+
+# ============================================================
+# 离线单元测试 —— 不依赖网络，任何环境都能运行
+# ============================================================
 
 class TestCheckDomainReputation:
     """测试域名声誉检查。"""
@@ -33,30 +35,34 @@ class TestCheckDomainReputation:
         assert result["listed"] is True
         assert "local_blacklist" in result["blacklists"]
 
-    def test_blacklisted_domain_2(self):
-        result = check_domain_reputation("spammer.com")
-        assert result["listed"] is True
-        assert result["score"] == 0.8
-
-    def test_blacklisted_domain_3(self):
-        result = check_domain_reputation("marketing-spam.com")
-        assert result["listed"] is True
+    def test_blacklisted_multiple(self):
+        for domain in ("spammer.com", "marketing-spam.com"):
+            result = check_domain_reputation(domain)
+            assert result["listed"] is True
+            assert result["score"] == 0.8
 
     def test_whitelist_vs_blacklist_precedence(self):
         """白名单优先于黑名单"""
-        # google.com 在白名单中，即使逻辑上匹配黑名单模式
         result = check_domain_reputation("google.com")
         assert result["score"] == 0.0
         assert result["listed"] is False
 
-    def test_unknown_domain_needs_network(self):
-        """未知域名需网络请求 DP; 至少不抛异常"""
-        try:
-            result = check_domain_reputation("example.com")
-            assert "score" in result
-            assert "details" in result
-        except OSError:
-            pytest.skip("网络不可用")
+    def test_custom_whitelist(self):
+        """可传入自定义白名单覆盖默认值。"""
+        result = check_domain_reputation("evil.com", whitelist={"evil.com"})
+        assert result["score"] == 0.0
+        assert result["listed"] is False
+
+    def test_custom_blacklist(self):
+        """可传入自定义黑名单覆盖默认值。"""
+        result = check_domain_reputation("evil.com", blacklist={"evil.com"})
+        assert result["score"] > 0
+        assert result["listed"] is True
+
+    def test_dnsbl_disabled(self):
+        """空 DNSBL 列表应跳过网络查询。"""
+        result = check_domain_reputation("example.com", dnsbl_servers=[])
+        assert "未配置" in result["details"]
 
 
 class TestCheckIpReputation:
@@ -67,39 +73,44 @@ class TestCheckIpReputation:
         assert result["score"] == 0.0
         assert result["listed"] is False
 
-    def test_valid_ip_no_listing(self):
-        """有效 IP 但不在黑名单中（集成测试，需网络）"""
-        try:
-            # 使用 1.1.1.1（Cloudflare 的 DNS）——不在黑名单中
-            result = check_ip_reputation("1.1.1.1")
-            assert "score" in result
-            assert "details" in result
-        except OSError:
-            pytest.skip("网络不可用")
-
-    def test_invalid_ip_format(self):
-        """IP 格式错误不应抛异常"""
-        try:
-            result = check_ip_reputation("999.999.999.999")
-            assert "score" in result
-        except OSError:
-            pytest.skip("网络不可用")
-
-    def test_private_ip_not_listed(self):
-        """私有 IP 应不在黑名单中"""
-        try:
-            result = check_ip_reputation("10.0.0.1")
-            assert result["score"] == 0.0
-        except OSError:
-            pytest.skip("网络不可用")
+    def test_dnsbl_disabled(self):
+        """空 DNSBL 列表应跳过网络查询。"""
+        result = check_ip_reputation("1.1.1.1", dnsbl_servers=[])
+        assert "未配置" in result["details"]
 
 
 class TestCheckDomainAge:
     """测试域名年龄检查（占位实现）。"""
 
     def test_age_not_implemented(self):
-        """当前返回 -1 表示未实现"""
         result = check_domain_age("example.com")
         assert result["age_days"] == -1
         assert result["is_new"] is False
         assert "未实现" in result["details"]
+
+
+# ============================================================
+# 联网集成测试 —— 需要 DNS 网络可达
+# ============================================================
+
+@pytest.mark.online
+class TestOnlineReputation:
+    """需要网络的声誉测试。用 pytest -m 'not online' 跳过。"""
+
+    def test_unknown_domain_resolves(self):
+        result = check_domain_reputation("example.com")
+        assert "score" in result
+        assert "details" in result
+
+    @pytest.mark.dns
+    def test_valid_ip_not_listed(self):
+        """Cloudflare DNS — 不应在任何黑名单中。"""
+        result = check_ip_reputation("1.1.1.1")
+        assert "score" in result
+        assert "details" in result
+
+    @pytest.mark.dns
+    def test_private_ip(self):
+        """私有 IP 查 DNSBL 不会命中但也不抛异常。"""
+        result = check_ip_reputation("10.0.0.1")
+        assert "score" in result

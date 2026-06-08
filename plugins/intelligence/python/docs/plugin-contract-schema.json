@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/x12w/email-system/blob/main/plugins/intelligence/python/docs/plugin-contract-schema.json",
+  "title": "Intelligence Plugin Response",
+  "description": "邮件智能分析插件输出 JSON 的 Schema 定义。Java 后端通过此结构解析分析结果。",
+
+  "definitions": {
+    "spamLabel": {
+      "type": "string",
+      "enum": ["normal", "spam", "unknown"],
+      "description": "垃圾邮件标签"
+    },
+    "priorityLabel": {
+      "type": "string",
+      "enum": ["low", "normal", "high"],
+      "description": "优先级标签"
+    },
+    "riskLevel": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high", "critical"],
+      "description": "综合风险等级"
+    },
+    "indicatorRiskLevel": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "单条风险指标的等级"
+    },
+    "indicator": {
+      "type": "object",
+      "required": ["type", "value", "riskLevel", "reason"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["url", "attachment", "sender", "phishing", "html"],
+          "description": "风险类型"
+        },
+        "value": {
+          "type": "string",
+          "description": "触发风险的具体内容"
+        },
+        "riskLevel": {
+          "$ref": "#/definitions/indicatorRiskLevel"
+        },
+        "reason": {
+          "type": "string",
+          "description": "风险原因描述"
+        }
+      }
+    },
+    "spam": {
+      "type": "object",
+      "required": ["label", "score"],
+      "properties": {
+        "label": { "$ref": "#/definitions/spamLabel" },
+        "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+      }
+    },
+    "priority": {
+      "type": "object",
+      "required": ["label", "score", "reasons"],
+      "properties": {
+        "label": { "$ref": "#/definitions/priorityLabel" },
+        "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "required": ["level", "score", "indicators"],
+      "properties": {
+        "level": { "$ref": "#/definitions/riskLevel" },
+        "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "indicators": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/indicator" }
+        }
+      }
+    }
+  },
+
+  "type": "object",
+  "required": ["pluginVersion", "spam", "priority", "risk", "actions"],
+  "properties": {
+    "pluginVersion": {
+      "type": "string",
+      "description": "插件版本号，用于回溯分析结果差异"
+    },
+    "analyzedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "分析完成时间（ISO 8601）"
+    },
+    "spam": { "$ref": "#/definitions/spam" },
+    "priority": { "$ref": "#/definitions/priority" },
+    "risk": { "$ref": "#/definitions/risk" },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "mark_high_priority",
+          "push_notification",
+          "push_security_alert"
+        ]
+      }
+    },
+    "requestId": {
+      "type": "string",
+      "description": "请求 ID，原样回传用于追踪"
+    },
+    "messageId": {
+      "type": "integer",
+      "description": "邮件 ID，原样回传用于关联"
+    },
+    "code": {
+      "type": "string",
+      "description": "错误码，成功时为 '0'"
+    },
+    "message": {
+      "type": "string",
+      "description": "错误描述，成功时为空"
+    }
+  }
+}

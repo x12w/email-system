@@ -2,11 +2,52 @@ from __future__ import annotations
 
 import json
 
-# 注意这里的导入方式：from .analyzer import analyze_email
-# 开头的点号 . 表示"相对导入"，意思是"从当前包（src 目录）中的 analyzer 模块导入"
-# 因为 src 目录下有 __init__.py，它已经是一个 Python 包了
-# 所以要用相对导入而不是直接 from analyzer import ...
+from ._version import __version__
 from .analyzer import analyze_email
+
+
+# ============================================================
+# 错误码定义
+# ============================================================
+# 遵循 docs/03-frontend-backend-contract.md 的错误码规范，
+# 使用 PLUGIN_ 前缀与后端错误码区分。
+# ============================================================
+
+# 成功
+SUCCESS = "0"
+
+# 输入错误
+ERR_INVALID_JSON = "PLUGIN_VALIDATION_400"      # JSON 格式错误或字段缺失
+
+# DNS 相关
+ERR_DNS_TIMEOUT = "PLUGIN_DNS_TIMEOUT"           # DNS 查询超时（如 SPF/DKIM/DMARC）
+
+# 系统内部错误
+ERR_INTERNAL = "PLUGIN_INTERNAL_500"             # Python 解释器或内部异常
+
+
+def _make_error(code: str, message: str) -> str:
+    """构造标准错误响应 JSON。
+
+    Args:
+        code:    错误码，遵循 PLUGIN_ 前缀约定
+        message: 人类可读的错误描述
+
+    Returns:
+        JSON 格式的错误响应字符串
+    """
+    return json.dumps(
+        {
+            "pluginVersion": __version__,
+            "code": code,
+            "message": message,
+            "spam": {"label": "unknown", "score": 0.0},
+            "priority": {"label": "normal", "score": 0.0, "reasons": []},
+            "risk": {"level": "none", "score": 0.0, "indicators": []},
+            "actions": [],
+        },
+        ensure_ascii=False,
+    )
 
 
 def analyze_email_json(request_json: str) -> str:
@@ -21,18 +62,10 @@ def analyze_email_json(request_json: str) -> str:
     - 便于调试：JSON 是纯文本，可以直接查看和记录日志
     - 松耦合：外部和内部通过 JSON 协议通信，互不依赖实现细节
 
-    工作流程：
-    1. 接收 JSON 字符串（request_json）
-    2. 用 json.loads 把 JSON 解析成 Python 字典
-    3. 调用 analyze_email() 核心分析函数
-    4. 用 json.dumps 把分析结果字典转回 JSON 字符串
-    5. 返回 JSON 字符串给调用方
-
-    异常处理：
-    如果过程中出现任何异常（比如 JSON 格式不对、字段缺失等），
-    不会崩溃，而是返回一个"安全"的默认结果，同时在结果中包含错误信息。
-    这种"永不崩溃"的设计对插件系统非常重要——一个插件的崩溃
-    不应该影响整个邮件系统的运行。
+    错误处理（遵循 07-intelligent-mail-management.md 的要求）：
+    - 插件异常时不阻断邮件入库，结果标记为 unknown
+    - 所有异常都被捕获，返回标准错误响应
+    - 错误码遵循 PLUGIN_ 前缀约定
 
     Args:
         request_json: JSON 格式的请求字符串，包含邮件的各种字段
@@ -41,31 +74,18 @@ def analyze_email_json(request_json: str) -> str:
         JSON 格式的分析结果字符串
     """
     try:
-        # json.loads：把 JSON 字符串解析成 Python 字典
-        # 例如输入 '{"subject": "Hello", "plainText": "..."}'
-        # 会变成 Python 字典 {"subject": "Hello", "plainText": "..."}
         payload = json.loads(request_json)
-
-        # 调用核心分析函数
         result = analyze_email(payload)
-
-        # json.dumps：把 Python 对象转回 JSON 字符串
-        # ensure_ascii=False 表示允许输出中文等非 ASCII 字符
-        #（而不是把中文转成 \uXXXX 的转义序列）
+        result["pluginVersion"] = __version__
         return json.dumps(result, ensure_ascii=False)
 
+    except json.JSONDecodeError as exc:
+        return _make_error(
+            ERR_INVALID_JSON,
+            f"JSON 解析失败: {exc}",
+        )
     except Exception as exc:
-        # 任何异常都不会让程序崩溃，而是返回一个默认的安全结果
-        # 风险等级设为 "none"（无风险），避免误报
-        # 同时把错误信息包含在返回结果中，方便排查问题
-        return json.dumps(
-            {
-                "pluginVersion": "0.1.0",
-                "spam": {"label": "unknown", "score": 0.0},
-                "priority": {"label": "normal", "score": 0.0, "reasons": []},
-                "risk": {"level": "none", "score": 0.0, "indicators": []},
-                "actions": [],
-                "error": str(exc),  # 错误信息，方便调试
-            },
-            ensure_ascii=False,
+        return _make_error(
+            ERR_INTERNAL,
+            f"分析异常: {exc}",
         )

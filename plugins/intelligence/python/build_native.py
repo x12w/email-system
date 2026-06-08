@@ -14,12 +14,15 @@ Native 动态库构建脚本。
     - C 编译器（Windows: MSVC / Linux: gcc）
 """
 
+import hashlib
 import os
 import shutil
 import subprocess
 import sys
 import sysconfig
 import platform
+
+from src._version import __version__
 
 
 def get_python_include_dir() -> str:
@@ -212,6 +215,23 @@ def build(debug: bool = False) -> bool:
     if os.path.isfile(output):
         size = os.path.getsize(output)
         print(f"[成功] {output} ({size / 1024:.1f} KB)")
+
+        # 计算 SHA-256 校验和
+        sha256 = hashlib.sha256()
+        with open(output, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                sha256.update(chunk)
+        checksum = sha256.hexdigest()
+        checksum_file = f"{output}.sha256"
+        with open(checksum_file, "w") as f:
+            f.write(f"{checksum}  {output}\n")
+        print(f"[校验和] {checksum_file} -> {checksum[:16]}...")
+
+        # 生成 version.txt
+        with open("plugin_version.txt", "w") as f:
+            f.write(f"{__version__}\n")
+        print(f"[版本]   plugin_version.txt -> {__version__}")
+
         return True
 
     print("[警告] 编译完成但未找到输出文件")

@@ -173,6 +173,8 @@ class TestCheckSpf:
         assert result["checked"] is True
         assert result["result"] == "not_found"
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_well_known_domain(self):
         """知名域名应有 SPF 记录（集成测试，需网络）"""
         result = check_spf("gmail.com")
@@ -182,6 +184,8 @@ class TestCheckSpf:
         assert result["result"] == "found"
         assert result["spf_record"].startswith("v=spf1")
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_spf_record_field(self):
         """返回的记录字段应包含 SPF 内容（集成测试）"""
         result = check_spf("gmail.com")
@@ -203,6 +207,8 @@ class TestCheckDkim:
         assert result["checked"] is True
         assert result["result"] == "not_found"
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_google_dkim(self):
         """Google 的 DKIM 选择器 'google' 应有记录（集成测试）"""
         result = check_dkim("gmail.com", selector="google")
@@ -225,6 +231,8 @@ class TestCheckDmarc:
         assert result["checked"] is True
         assert result["result"] == "not_found"
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_well_known_domain(self):
         """知名域名应有 DMARC 记录（集成测试）"""
         result = check_dmarc("gmail.com")
@@ -234,6 +242,8 @@ class TestCheckDmarc:
         assert result["result"] == "found"
         assert result["policy"] in ("reject", "quarantine", "none")
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_dmarc_policy_field(self):
         """DMARC 结果应包含 policy 字段（集成测试）"""
         result = check_dmarc("gmail.com")
@@ -250,6 +260,8 @@ class TestCheckDkimCustomSelector:
         result = check_dkim("", selector="custom")
         assert result["checked"] is False
 
+    @pytest.mark.online
+    @pytest.mark.dns
     def test_selector_in_result(self):
         """返回结果应包含使用的选择器名"""
         result = check_dkim("outlook.com", selector="google")
