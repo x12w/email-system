@@ -19,7 +19,7 @@ email-system/
   frontend/        前端应用
   backend/         后端服务
   docs/            项目文档、接口约定、数据库设计、开发规范
-  deploy/          Nginx、MinIO 等部署配置
+  deploy/          Nginx、Redis、MinIO 等部署配置
   scripts/         辅助脚本
   data/            本地开发数据目录，不提交业务数据
 ```
