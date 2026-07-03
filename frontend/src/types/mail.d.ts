@@ -89,3 +89,46 @@ export interface MailAccountRequest {
   password: string
   sslEnabled?: number
 }
+
+// ---------- intelligence ----------
+
+export interface ThreatIndicator {
+  type: string
+  value: string
+  riskLevel: string
+  reason: string
+}
+
+export interface IntelligenceResult {
+  messageId: number
+  spamLabel: string
+  spamScore: number
+  priorityLabel: string
+  priorityScore: number
+  riskLevel: string
+  riskScore: number
+  pluginName: string
+  pluginVersion: string
+  analyzedAt: string
+  threats: ThreatIndicator[]
+}
+
+export interface PluginStatus {
+  name: string
+  version: string
+  runtime: string
+  enabled: boolean
+  timeoutMs: number
+  status: string
+}
+
+export interface PushEvent {
+  id: number
+  messageId: number
+  eventType: string
+  title: string
+  content: string
+  priority: string
+  read: boolean
+  pushedAt: string
+}

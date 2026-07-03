@@ -55,6 +55,8 @@
 | `AUTH_403` | 无权限 |
 | `VALIDATION_400` | 参数校验失败 |
 | `MAIL_400` | 邮件业务异常 |
+| `INTELLIGENCE_400` | 智能分析请求异常 |
+| `INTELLIGENCE_503` | 智能分析插件不可用 |
 | `STORAGE_500` | 文件存储异常 |
 | `SYSTEM_500` | 系统异常 |
 
@@ -159,10 +161,51 @@ GET /api/messages?folderId=1&keyword=invoice&read=false&page=1&size=20
 | `PUT` | `/api/contacts/{id}` | 更新联系人 |
 | `DELETE` | `/api/contacts/{id}` | 删除联系人 |
 
+### 智能邮件管理
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/intelligence/messages/{messageId}` | 查询单封邮件智能分析结果 |
+| `POST` | `/api/intelligence/messages/{messageId}/analyze` | 手动触发邮件智能分析 |
+| `GET` | `/api/intelligence/threats` | 查询风险项列表 |
+| `GET` | `/api/intelligence/push-events` | 查询高优先或高危推送事件 |
+| `PUT` | `/api/intelligence/push-events/{id}/read` | 标记推送事件已读 |
+| `GET` | `/api/intelligence/plugins` | 查询智能插件版本和状态 |
+
+邮件智能分析结果响应：
+
+```json
+{
+  "messageId": 10001,
+  "spamLabel": "normal",
+  "spamScore": 0.12,
+  "priorityLabel": "high",
+  "priorityScore": 0.91,
+  "riskLevel": "medium",
+  "riskScore": 0.67,
+  "pluginName": "python-mail-intelligence",
+  "pluginVersion": "0.1.0",
+  "analyzedAt": "2026-05-17T22:30:00+08:00",
+  "threats": [
+    {
+      "type": "url",
+      "value": "https://example.com/pay",
+      "riskLevel": "medium",
+      "reason": "new domain and payment keyword"
+    }
+  ]
+}
+```
+
+邮件列表可扩展筛选参数：
+
+```text
+GET /api/messages?folderId=1&spamLabel=normal&priorityLabel=high&riskLevel=high&page=1&size=20
+```
+
 ## 前端 Axios 约定
 
 1. 请求拦截器统一注入 `Authorization`。
 2. 响应拦截器只向页面返回 `data.data`。
 3. `AUTH_401` 统一跳转登录页，并清理 Pinia 中的认证状态。
 4. 文件上传使用 `multipart/form-data`，字段名为 `file`。
-

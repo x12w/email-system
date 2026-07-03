@@ -114,6 +114,76 @@ CREATE TABLE IF NOT EXISTS mail_attachment (
   KEY idx_attachment_message (message_id)
 );
 
+CREATE TABLE IF NOT EXISTS mail_intelligence_result (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  spam_label VARCHAR(32) NOT NULL DEFAULT 'unknown',
+  spam_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  priority_label VARCHAR(32) NOT NULL DEFAULT 'normal',
+  priority_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  risk_level VARCHAR(32) NOT NULL DEFAULT 'none',
+  risk_score DECIMAL(5,4) NOT NULL DEFAULT 0,
+  action_json JSON,
+  reason_json JSON,
+  plugin_name VARCHAR(128) NOT NULL,
+  plugin_version VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'success',
+  error_message VARCHAR(512),
+  analyzed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_intelligence_message (message_id),
+  KEY idx_intelligence_user_priority (user_id, priority_label),
+  KEY idx_intelligence_user_risk (user_id, risk_level),
+  KEY idx_intelligence_user_spam (user_id, spam_label)
+);
+
+CREATE TABLE IF NOT EXISTS mail_threat_indicator (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  intelligence_result_id BIGINT NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  value VARCHAR(1024) NOT NULL,
+  risk_level VARCHAR(32) NOT NULL,
+  reason VARCHAR(512),
+  rule_id VARCHAR(128),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_threat_message (message_id),
+  KEY idx_threat_user_risk (user_id, risk_level),
+  KEY idx_threat_type (type)
+);
+
+CREATE TABLE IF NOT EXISTS mail_push_event (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  message_id BIGINT NOT NULL,
+  event_type VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content VARCHAR(512),
+  priority VARCHAR(32) NOT NULL DEFAULT 'normal',
+  read_flag TINYINT NOT NULL DEFAULT 0,
+  pushed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_push_user_read_time (user_id, read_flag, created_at),
+  KEY idx_push_message (message_id)
+);
+
+CREATE TABLE IF NOT EXISTS intelligence_plugin (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(128) NOT NULL,
+  version VARCHAR(64) NOT NULL,
+  runtime VARCHAR(32) NOT NULL DEFAULT 'python-native',
+  artifact_path VARCHAR(512) NOT NULL,
+  checksum VARCHAR(128),
+  enabled TINYINT NOT NULL DEFAULT 1,
+  timeout_ms INT NOT NULL DEFAULT 2000,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_plugin_name_version (name, version)
+);
+
 CREATE TABLE IF NOT EXISTS contact (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,

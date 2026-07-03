@@ -113,7 +113,6 @@ async function submit() {
   }
 }
 </script>
-
 <style scoped>
 .auth-page {
   display: flex;

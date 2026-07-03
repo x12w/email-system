@@ -1,8 +1,11 @@
 import request from '@/utils/request'
 import type {
+  IntelligenceResult,
   MailItem,
   MailListParams,
   MailListResponse,
+  PluginStatus,
+  PushEvent,
   SendMailRequest,
   MailAttachment,
   MailAccount,
@@ -91,4 +94,26 @@ export function deleteMailAccount(id: number): Promise<void> {
 
 export function testMailAccount(id: number): Promise<void> {
   return request.post(`/mail-accounts/${id}/test`)
+}
+
+// ---------- intelligence ----------
+
+export function analyzeMessage(id: number): Promise<IntelligenceResult> {
+  return request.post(`/intelligence/messages/${id}/analyze`)
+}
+
+export function getIntelligenceResult(id: number): Promise<IntelligenceResult> {
+  return request.get(`/intelligence/messages/${id}`)
+}
+
+export function listPlugins(): Promise<PluginStatus[]> {
+  return request.get('/intelligence/plugins')
+}
+
+export function listPushEvents(): Promise<PushEvent[]> {
+  return request.get('/intelligence/push-events')
+}
+
+export function markPushEventRead(id: number): Promise<PushEvent> {
+  return request.put(`/intelligence/push-events/${id}/read`)
 }

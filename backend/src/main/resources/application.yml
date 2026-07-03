@@ -28,3 +28,10 @@ mail:
   host: ${MAIL_HOST:localhost}
   port: ${MAIL_PORT:1025}
 
+intelligence:
+  plugin:
+    enabled: ${INTELLIGENCE_PLUGIN_ENABLED:true}
+    name: ${INTELLIGENCE_PLUGIN_NAME:python-mail-intelligence}
+    version: ${INTELLIGENCE_PLUGIN_VERSION:0.1.0}
+    artifact-path: ${INTELLIGENCE_PLUGIN_ARTIFACT_PATH:./plugins/intelligence/native/linux/libmail_intelligence.so}
+    timeout-ms: ${INTELLIGENCE_PLUGIN_TIMEOUT_MS:2000}
