@@ -10,6 +10,7 @@ import type {
   MailAttachment,
   MailAccount,
   MailAccountRequest,
+  ThreatIndicator,
 } from '@/types/mail'
 
 // ---------- messages ----------
@@ -27,21 +28,10 @@ export function sendMail(data: SendMailRequest): Promise<void> {
 }
 
 /**
- * 保存草稿。
- * 如果 data.draftId 存在则走 PUT 更新已有草稿，否则 POST 新建草稿。
+ * 保存草稿（新建草稿，后端只提供 POST /api/messages/drafts）。
  */
 export function saveDraft(data: SendMailRequest): Promise<{ id: number }> {
-  if (data.draftId) {
-    return request.put(`/messages/drafts/${data.draftId}`, data)
-  }
   return request.post('/messages/drafts', data)
-}
-
-/**
- * 更新已有草稿（PUT 方式）。
- */
-export function updateDraft(id: number, data: SendMailRequest): Promise<void> {
-  return request.put(`/messages/drafts/${id}`, data)
 }
 
 export function markAsRead(id: number): Promise<void> {
@@ -116,4 +106,8 @@ export function listPushEvents(): Promise<PushEvent[]> {
 
 export function markPushEventRead(id: number): Promise<PushEvent> {
   return request.put(`/intelligence/push-events/${id}/read`)
+}
+
+export function getThreats(): Promise<ThreatIndicator[]> {
+  return request.get('/intelligence/threats')
 }

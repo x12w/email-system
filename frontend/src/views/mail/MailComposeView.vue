@@ -521,7 +521,6 @@ async function handleSaveDraft() {
       contentType,
       content: form.content || '',
       attachmentIds: getAttachmentIds().length > 0 ? getAttachmentIds() : undefined,
-      draftId: draftId.value ?? undefined,
     }
 
     const savedId = await mailStore.doSaveDraft(payload)

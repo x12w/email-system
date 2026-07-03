@@ -48,8 +48,6 @@ export interface SendMailRequest {
   contentType?: 'text' | 'html'
   content: string
   attachmentIds?: number[]
-  /** 编辑已有草稿时传入草稿邮件 ID，后端据此执行更新而非新建 */
-  draftId?: number
 }
 
 export interface MailListParams {
@@ -57,6 +55,12 @@ export interface MailListParams {
   folderId?: number
   keyword?: string
   read?: number
+  /** 智能垃圾邮件标签筛选：normal / spam */
+  spamLabel?: string
+  /** 智能优先级标签筛选：high / low */
+  priorityLabel?: string
+  /** 智能风险等级筛选：high / medium / low */
+  riskLevel?: string
   page?: number
   size?: number
 }

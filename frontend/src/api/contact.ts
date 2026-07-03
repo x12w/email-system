@@ -5,10 +5,6 @@ export function getContactList(params: ContactListParams): Promise<ContactListRe
   return request.get('/contacts', { params })
 }
 
-export function getContactDetail(id: number): Promise<ContactItem> {
-  return request.get(`/contacts/${id}`)
-}
-
 export function createContact(data: ContactRequest): Promise<void> {
   return request.post('/contacts', data)
 }
