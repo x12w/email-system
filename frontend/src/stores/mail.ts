@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { MailItem, MailListParams } from '@/types/mail'
-import { getMailList } from '@/api/mail'
+import type { MailItem, MailListParams, MailAccount, SendMailRequest } from '@/types/mail'
+import { getMailList, getMailAccounts, saveDraft, sendMail } from '@/api/mail'
 
 export const useMailStore = defineStore('mail', () => {
   const mailList = ref<MailItem[]>([])
@@ -12,6 +12,10 @@ export const useMailStore = defineStore('mail', () => {
   // 当前激活的文件夹（用于侧边栏高亮）
   const currentFolderId = ref<number | undefined>(undefined)
   const currentFolderType = ref<string>('inbox')
+
+  // 邮箱账号列表（用于发件人选择）
+  const accounts = ref<MailAccount[]>([])
+  const accountsLoading = ref(false)
 
   const filters = ref<MailListParams>({
     page: 1,
@@ -64,6 +68,47 @@ export const useMailStore = defineStore('mail', () => {
     await fetchMailList()
   }
 
+  // ---------- 邮箱账号 ----------
+
+  async function fetchAccounts(): Promise<void> {
+    accountsLoading.value = true
+    try {
+      accounts.value = await getMailAccounts()
+    } catch {
+      accounts.value = []
+    } finally {
+      accountsLoading.value = false
+    }
+  }
+
+  // ---------- 发送与草稿 ----------
+
+  let sending = ref(false)
+
+  /**
+   * 发送邮件
+   */
+  async function doSendMail(data: SendMailRequest): Promise<void> {
+    sending.value = true
+    try {
+      await sendMail(data)
+    } finally {
+      sending.value = false
+    }
+  }
+
+  /**
+   * 保存草稿，返回草稿 ID
+   */
+  async function doSaveDraft(data: SendMailRequest): Promise<number | null> {
+    try {
+      const result = await saveDraft(data)
+      return result?.id ?? null
+    } catch {
+      return null
+    }
+  }
+
   return {
     mailList,
     currentMail,
@@ -72,6 +117,9 @@ export const useMailStore = defineStore('mail', () => {
     filters,
     currentFolderId,
     currentFolderType,
+    accounts,
+    accountsLoading,
+    sending,
     hasMore,
     currentPage,
     pageSize,
@@ -80,5 +128,8 @@ export const useMailStore = defineStore('mail', () => {
     resetMailList,
     fetchMailList,
     goToPage,
+    fetchAccounts,
+    doSendMail,
+    doSaveDraft,
   }
 })

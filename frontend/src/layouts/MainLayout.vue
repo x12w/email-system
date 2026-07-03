@@ -158,6 +158,8 @@ async function handleLogout() {
 
 onMounted(() => {
   loadFolders()
+  // 预加载邮箱账号列表（撰写邮件时需要）
+  mailStore.fetchAccounts()
 })
 </script>
 

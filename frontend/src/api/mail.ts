@@ -23,8 +23,22 @@ export function sendMail(data: SendMailRequest): Promise<void> {
   return request.post('/messages/send', data)
 }
 
-export function saveDraft(data: SendMailRequest): Promise<void> {
+/**
+ * 保存草稿。
+ * 如果 data.draftId 存在则走 PUT 更新已有草稿，否则 POST 新建草稿。
+ */
+export function saveDraft(data: SendMailRequest): Promise<{ id: number }> {
+  if (data.draftId) {
+    return request.put(`/messages/drafts/${data.draftId}`, data)
+  }
   return request.post('/messages/drafts', data)
+}
+
+/**
+ * 更新已有草稿（PUT 方式）。
+ */
+export function updateDraft(id: number, data: SendMailRequest): Promise<void> {
+  return request.put(`/messages/drafts/${id}`, data)
 }
 
 export function markAsRead(id: number): Promise<void> {

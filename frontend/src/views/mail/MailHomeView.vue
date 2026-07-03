@@ -19,7 +19,7 @@
           class="read-filter"
           @change="onReadFilterChange"
         >
-          <el-option label="全部" :value="undefined" />
+          <el-option label="全部" value="" />
           <el-option label="未读" :value="0" />
           <el-option label="已读" :value="1" />
         </el-select>
@@ -62,10 +62,11 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="发件人" width="160">
+      <!-- 发件人（发件箱/已发送显示收件人） -->
+      <el-table-column :label="mailStore.currentFolderType === 'sent' ? '收件人' : '发件人'" width="160">
         <template #default="{ row }">
           <span class="mail-sender" :class="{ 'font-bold': !row.readFlag }">
-            {{ row.fromName || row.fromAddress }}
+            {{ senderDisplay(row) }}
           </span>
         </template>
       </el-table-column>
@@ -136,7 +137,7 @@ const mailStore = useMailStore()
 
 const tableRef = ref<InstanceType<typeof ElTable>>()
 const keyword = ref('')
-const readFilter = ref<number | undefined>(undefined)
+const readFilter = ref<number | string>('')
 const currentPageModel = ref(mailStore.currentPage)
 const selectedIds = ref<number[]>([])
 
@@ -155,7 +156,7 @@ watch(
   () => mailStore.currentFolderId,
   () => {
     keyword.value = ''
-    readFilter.value = undefined
+    readFilter.value = ''
     loadMailList()
   },
 )
@@ -179,8 +180,8 @@ function onSearchClear() {
   loadMailList()
 }
 
-function onReadFilterChange(value: number | undefined) {
-  mailStore.setFilters({ read: value })
+function onReadFilterChange(value: number | string) {
+  mailStore.setFilters({ read: value === '' ? undefined : (value as number) })
   loadMailList()
 }
 
@@ -235,7 +236,21 @@ async function handleDelete(id: number) {
   }
 }
 
-function openDetail(row: { id: number; readFlag: number }) {
+function senderDisplay(row: { fromName: string | null; fromAddress: string; recipients?: { type: string; emailAddress: string; displayName?: string }[] }): string {
+  // 已发送文件夹显示收件人
+  if (mailStore.currentFolderType === 'sent') {
+    const toList = row.recipients?.filter((r) => r.type === 'to').map((r) => r.displayName || r.emailAddress) || []
+    return toList.join('; ') || row.fromAddress
+  }
+  return row.fromName || row.fromAddress
+}
+
+function openDetail(row: { id: number; readFlag: number; draftFlag: number }) {
+  // 草稿邮件 → 跳转写邮件页编辑
+  if (row.draftFlag === 1) {
+    router.push(`/compose?draftId=${row.id}`)
+    return
+  }
   // 未读邮件先标记已读
   if (!row.readFlag) {
     markAsRead(row.id).catch(() => {})

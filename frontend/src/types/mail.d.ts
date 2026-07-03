@@ -48,6 +48,8 @@ export interface SendMailRequest {
   contentType?: 'text' | 'html'
   content: string
   attachmentIds?: number[]
+  /** 编辑已有草稿时传入草稿邮件 ID，后端据此执行更新而非新建 */
+  draftId?: number
 }
 
 export interface MailListParams {
