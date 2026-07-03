@@ -28,8 +28,15 @@ export const useMailStore = defineStore('mail', () => {
 
   function setFilters(partial: Partial<MailListParams>) {
     filters.value = { ...filters.value, ...partial }
-    // 修改筛选条件时重置页码
-    if (partial.folderId !== undefined || partial.keyword !== undefined || partial.read !== undefined) {
+    // 修改筛选条件时重置页码（包括智能标签筛选）
+    if (
+      partial.folderId !== undefined ||
+      partial.keyword !== undefined ||
+      partial.read !== undefined ||
+      partial.spamLabel !== undefined ||
+      partial.priorityLabel !== undefined ||
+      partial.riskLevel !== undefined
+    ) {
       filters.value.page = 1
     }
   }

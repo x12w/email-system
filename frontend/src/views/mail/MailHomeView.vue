@@ -23,6 +23,40 @@
           <el-option label="未读" :value="false" />
           <el-option label="已读" :value="true" />
         </el-select>
+        <el-select
+          v-model="spamLabelFilter"
+          placeholder="垃圾邮件"
+          clearable
+          class="smart-filter"
+          @change="onSpamLabelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="正常" value="normal" />
+          <el-option label="垃圾邮件" value="spam" />
+        </el-select>
+        <el-select
+          v-model="priorityLabelFilter"
+          placeholder="优先级"
+          clearable
+          class="smart-filter"
+          @change="onPriorityLabelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="高" value="high" />
+          <el-option label="低" value="low" />
+        </el-select>
+        <el-select
+          v-model="riskLevelFilter"
+          placeholder="风险等级"
+          clearable
+          class="smart-filter"
+          @change="onRiskLevelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="高" value="high" />
+          <el-option label="中" value="medium" />
+          <el-option label="低" value="low" />
+        </el-select>
       </div>
       <div class="toolbar-right">
         <el-button type="primary" @click="router.push('/compose')">
@@ -90,6 +124,48 @@
         </template>
       </el-table-column>
 
+      <!-- 智能标签：垃圾邮件 -->
+      <el-table-column label="垃圾邮件" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.spamLabel"
+            :type="row.spamLabel === 'spam' ? 'danger' : 'success'"
+            size="small"
+            effect="plain"
+          >
+            {{ row.spamLabel === 'spam' ? '垃圾' : '正常' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <!-- 智能标签：优先级 -->
+      <el-table-column label="优先级" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.priorityLabel"
+            :type="row.priorityLabel === 'high' ? 'warning' : 'info'"
+            size="small"
+            effect="plain"
+          >
+            {{ row.priorityLabel === 'high' ? '高' : '低' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <!-- 智能标签：风险等级 -->
+      <el-table-column label="风险" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.riskLevel"
+            :type="riskTagType(row.riskLevel)"
+            size="small"
+            effect="plain"
+          >
+            {{ row.riskLevel === 'high' ? '高' : row.riskLevel === 'medium' ? '中' : '低' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column label="时间" width="150" align="right">
         <template #default="{ row }">
           <span class="mail-time">{{ formatTime(row.receivedAt) }}</span>
@@ -138,6 +214,9 @@ const mailStore = useMailStore()
 const tableRef = ref<InstanceType<typeof ElTable>>()
 const keyword = ref('')
 const readFilter = ref<boolean | string>('')
+const spamLabelFilter = ref<string>('')
+const priorityLabelFilter = ref<string>('')
+const riskLevelFilter = ref<string>('')
 const currentPageModel = ref(mailStore.currentPage)
 const selectedIds = ref<number[]>([])
 
@@ -182,6 +261,21 @@ function onSearchClear() {
 
 function onReadFilterChange(value: boolean | string) {
   mailStore.setFilters({ read: value === '' ? undefined : (value as boolean) })
+  loadMailList()
+}
+
+function onSpamLabelFilterChange(value: string) {
+  mailStore.setFilters({ spamLabel: value || undefined })
+  loadMailList()
+}
+
+function onPriorityLabelFilterChange(value: string) {
+  mailStore.setFilters({ priorityLabel: value || undefined })
+  loadMailList()
+}
+
+function onRiskLevelFilterChange(value: string) {
+  mailStore.setFilters({ riskLevel: value || undefined })
   loadMailList()
 }
 
@@ -265,6 +359,13 @@ function formatTime(isoString: string | null): string {
   }
   return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
+
+/** 根据风险等级返回 el-tag 的 type */
+function riskTagType(level: string): 'danger' | 'warning' | 'info' {
+  if (level === 'high') return 'danger'
+  if (level === 'medium') return 'warning'
+  return 'info'
+}
 </script>
 
 <style scoped>
@@ -293,6 +394,9 @@ function formatTime(isoString: string | null): string {
   width: 280px;
 }
 .read-filter {
+  width: 110px;
+}
+.smart-filter {
   width: 110px;
 }
 
