@@ -76,7 +76,6 @@ export interface SendMailRequest {
 // ---------- 邮件列表查询参数 ----------
 
 export interface MailListParams {
-  accountId?: number
   folderId?: number
   keyword?: string
   read?: boolean
