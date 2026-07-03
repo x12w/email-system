@@ -7,6 +7,15 @@
         <el-button :icon="RefreshRight" @click="toggleRead">
           {{ mail?.read ? '标记未读' : '标记已读' }}
         </el-button>
+        <el-button :icon="ChatLineSquare" @click="goReply('reply')" :disabled="!mail || mail.draft">
+          回复
+        </el-button>
+        <el-button :icon="ChatDotRound" @click="goReply('replyAll')" :disabled="!mail || mail.draft">
+          回复全部
+        </el-button>
+        <el-button :icon="Share" @click="goReply('forward')" :disabled="!mail || mail.draft">
+          转发
+        </el-button>
         <el-button :icon="Delete" type="danger" plain @click="handleDelete">删除</el-button>
       </div>
     </header>
@@ -211,11 +220,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, RefreshRight, Delete, Paperclip, Document, Download, Cpu, Loading,
+  ChatLineSquare, ChatDotRound, Share,
 } from '@element-plus/icons-vue'
 import {
   getMailDetail, markAsRead, markAsUnread, deleteMail,
-  downloadAttachment as downloadAtt, getIntelligenceResult, analyzeMessage,
+  downloadAttachment as downloadAtt,
 } from '@/api/mail'
+import { getIntelligenceResult, analyzeMessage } from '@/api/intelligence'
 import type { MailItem, IntelligenceResult } from '@/types/mail'
 
 const route = useRoute()
@@ -334,6 +345,12 @@ async function handleDelete() {
   } catch {
     // 用户取消
   }
+}
+
+/** 跳转到写邮件页，携带回复/转发上下文 */
+function goReply(mode: 'reply' | 'replyAll' | 'forward') {
+  if (!mail.value) return
+  router.push(`/compose?replyId=${mail.value.id}&mode=${mode}`)
 }
 
 async function downloadAttachment(id: number, fileName: string) {

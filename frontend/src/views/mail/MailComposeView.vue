@@ -168,6 +168,10 @@
             <el-button @click="execCmd('formatBlock', '<p>')" size="small">段落</el-button>
             <el-button @click="execCmd('formatBlock', '<h3>')" size="small">标题</el-button>
           </el-button-group>
+          <el-button-group size="small" style="margin-left: 8px">
+            <el-button :icon="Picture" @click="insertImage" size="small" />
+            <el-button :icon="Link" @click="insertLink" size="small" />
+          </el-button-group>
         </div>
         <div
           ref="editorRef"
@@ -257,6 +261,8 @@ import {
   Close,
   Check,
   Loading,
+  Picture,
+  Link,
 } from '@element-plus/icons-vue'
 import { useMailStore } from '@/stores/mail'
 import { getMailDetail, uploadAttachment } from '@/api/mail'
@@ -404,12 +410,103 @@ async function loadDraft(id: number) {
   }
 }
 
+// ---------- 回复/转发 ----------
+
+/**
+ * 回复/转发模式标记
+ */
+type ReplyMode = 'reply' | 'replyAll' | 'forward'
+
+/**
+ * 加载原始邮件并预填回复/转发上下文。
+ * 从 route.query 读取 replyId 和 mode 参数：
+ *   - reply: 收件人=原发件人，主题="Re: 原标题"，正文引用原邮件
+ *   - replyAll: 收件人=原发件人+所有收件人+抄送人，其余同 reply
+ *   - forward: 主题="Fwd: 原标题"，正文引用原邮件，携带原附件
+ */
+async function loadReplyContext(replyId: number, mode: ReplyMode) {
+  loadingDraft.value = true
+  try {
+    const original = await getMailDetail(replyId)
+
+    // 构建引用文本
+    const quoteHeader = [
+      `---------- 原始邮件 ----------`,
+      `发件人: ${original.fromName ? `${original.fromName} <${original.fromAddress}>` : original.fromAddress}`,
+      `发送时间: ${formatDateTime(original.receivedAt || original.sentAt)}`,
+      `收件人: ${(original.to || []).join('; ')}`,
+      original.cc && original.cc.length > 0 ? `抄送: ${original.cc.join('; ')}` : '',
+      `主题: ${original.subject || '(无主题)'}`,
+    ].filter(Boolean).join('\n')
+
+    const quotedContent = `<br/><br/><blockquote style="margin:8px 0;padding:4px 12px;border-left:3px solid #d1d5db;color:#6b7280;">${quoteHeader.replace(/\n/g, '<br/>')}<br/><br/>${original.content || ''}</blockquote>`
+
+    if (mode === 'reply') {
+      form.subject = `Re: ${original.subject || '(无主题)'}`
+      form.to = [original.fromAddress]
+      form.content = quotedContent
+    } else if (mode === 'replyAll') {
+      form.subject = `Re: ${original.subject || '(无主题)'}`
+      // 收件人 = 原发件人 + 所有 to + 所有 cc（去重）
+      const allRecipients = new Set<string>()
+      allRecipients.add(original.fromAddress)
+      ;(original.to || []).forEach((addr) => allRecipients.add(addr))
+      ;(original.cc || []).forEach((addr) => allRecipients.add(addr))
+      form.to = Array.from(allRecipients)
+      form.content = quotedContent
+    } else if (mode === 'forward') {
+      form.subject = `Fwd: ${original.subject || '(无主题)'}`
+      form.content = quotedContent
+      // 携带原附件
+      if (original.attachments && original.attachments.length > 0) {
+        attachments.value = original.attachments.map((a) => ({
+          tempId: ++tempIdCounter,
+          fileName: a.originalName,
+          fileSize: a.sizeBytes,
+          uploaded: true,
+          uploading: false,
+          serverId: a.id,
+        }))
+      }
+    }
+
+    // 设置编辑模式
+    contentMode.value = 'richtext'
+    setTimeout(() => {
+      if (editorRef.value) {
+        editorRef.value.innerHTML = form.content
+      }
+    }, 0)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '加载原始邮件失败'
+    errorMsg.value = msg
+  } finally {
+    loadingDraft.value = false
+  }
+}
+
 // ---------- 富文本操作 ----------
 
 function execCmd(command: string, value?: string) {
   document.execCommand(command, false, value)
   editorRef.value?.focus()
   syncContentFromEditor()
+}
+
+/** 插入图片：弹出输入框填写图片URL */
+function insertImage() {
+  const url = window.prompt('请输入图片 URL：')
+  if (url) {
+    execCmd('insertImage', url)
+  }
+}
+
+/** 插入超链接：弹出输入框填写链接URL */
+function insertLink() {
+  const url = window.prompt('请输入链接 URL：')
+  if (url) {
+    execCmd('createLink', url)
+  }
 }
 
 function onEditorInput() {
@@ -615,6 +712,17 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatDateTime(isoString: string | null): string {
+  if (!isoString) return ''
+  return new Date(isoString).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 // ---------- 初始化 ----------
 
 onMounted(async () => {
@@ -626,6 +734,17 @@ onMounted(async () => {
     const id = Number(queryDraftId)
     if (!isNaN(id) && id > 0) {
       await loadDraft(id)
+      return
+    }
+  }
+
+  // 检查回复/转发上下文
+  const queryReplyId = route.query.replyId
+  const queryMode = route.query.mode as string | undefined
+  if (queryReplyId && queryMode && ['reply', 'replyAll', 'forward'].includes(queryMode)) {
+    const id = Number(queryReplyId)
+    if (!isNaN(id) && id > 0) {
+      await loadReplyContext(id, queryMode as ReplyMode)
     }
   }
 })

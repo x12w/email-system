@@ -59,6 +59,7 @@
         </el-select>
       </div>
       <div class="toolbar-right">
+        <el-button :icon="Refresh" @click="loadMailList" :loading="mailStore.loading">刷新</el-button>
         <el-button type="primary" @click="router.push('/compose')">
           <el-icon><Edit /></el-icon>
           写邮件
@@ -66,6 +67,10 @@
         <el-button :disabled="!selectedIds.length" @click="batchMarkRead">
           <el-icon><Check /></el-icon>
           标记已读
+        </el-button>
+        <el-button :disabled="!selectedIds.length" @click="batchMarkUnread">
+          <el-icon><Close /></el-icon>
+          标记未读
         </el-button>
         <el-button :disabled="!selectedIds.length" type="danger" plain @click="batchDelete">
           <el-icon><Delete /></el-icon>
@@ -203,9 +208,9 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ElTable } from 'element-plus'
 import {
-  Search, Edit, Check, Delete, StarFilled, Star, Paperclip,
+  Search, Edit, Check, Close, Delete, Refresh, StarFilled, Star, Paperclip,
 } from '@element-plus/icons-vue'
-import { markAsRead, deleteMail } from '@/api/mail'
+import { markAsRead, markAsUnread, deleteMail } from '@/api/mail'
 import { useMailStore } from '@/stores/mail'
 
 const router = useRouter()
@@ -297,6 +302,17 @@ async function batchMarkRead() {
   try {
     await Promise.all(selectedIds.value.map((id) => markAsRead(id)))
     ElMessage.success(`已标记 ${selectedIds.value.length} 封邮件为已读`)
+    loadMailList()
+  } catch {
+    ElMessage.error('操作失败')
+  }
+}
+
+async function batchMarkUnread() {
+  if (selectedIds.value.length === 0) return
+  try {
+    await Promise.all(selectedIds.value.map((id) => markAsUnread(id)))
+    ElMessage.success(`已标记 ${selectedIds.value.length} 封邮件为未读`)
     loadMailList()
   } catch {
     ElMessage.error('操作失败')

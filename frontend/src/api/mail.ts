@@ -1,17 +1,14 @@
 import request from '@/utils/request'
 import type {
-  IntelligenceResult,
   MailItem,
-  MailSummary,
   MailListParams,
   MailListResponse,
-  PluginStatus,
-  PushEvent,
+  ProcessMailRequest,
+  ProcessMailResponse,
   SendMailRequest,
   MailAttachment,
   MailAccount,
   MailAccountRequest,
-  ThreatIndicator,
 } from '@/types/mail'
 
 // ---------- messages ----------
@@ -45,6 +42,14 @@ export function markAsUnread(id: number): Promise<MailItem> {
 
 export function deleteMail(id: number): Promise<void> {
   return request.delete(`/messages/${id}`)
+}
+
+/**
+ * 接收并处理新邮件（触发 AI 拦截分析）。
+ * 对应 POST /api/messages/process
+ */
+export function processMail(data: ProcessMailRequest): Promise<ProcessMailResponse> {
+  return request.post('/messages/process', data)
 }
 
 // ---------- attachments ----------
@@ -85,30 +90,4 @@ export function deleteMailAccount(id: number): Promise<void> {
 
 export function testMailAccount(id: number): Promise<{ status: string; message: string }> {
   return request.post(`/mail-accounts/${id}/test`)
-}
-
-// ---------- intelligence ----------
-
-export function analyzeMessage(id: number): Promise<IntelligenceResult> {
-  return request.post(`/intelligence/messages/${id}/analyze`)
-}
-
-export function getIntelligenceResult(id: number): Promise<IntelligenceResult> {
-  return request.get(`/intelligence/messages/${id}`)
-}
-
-export function listPlugins(): Promise<PluginStatus[]> {
-  return request.get('/intelligence/plugins')
-}
-
-export function listPushEvents(): Promise<PushEvent[]> {
-  return request.get('/intelligence/push-events')
-}
-
-export function markPushEventRead(id: number): Promise<PushEvent> {
-  return request.put(`/intelligence/push-events/${id}/read`)
-}
-
-export function getThreats(): Promise<ThreatIndicator[]> {
-  return request.get('/intelligence/threats')
 }

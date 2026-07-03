@@ -56,6 +56,43 @@
 
       <!-- 底部用户区 -->
       <div class="sidebar-footer">
+        <!-- 推送事件通知铃铛 -->
+        <el-popover
+          placement="top-start"
+          :width="320"
+          trigger="click"
+          @show="loadPushEvents"
+        >
+          <template #reference>
+            <el-badge :value="unreadPushCount" :max="99" :hidden="unreadPushCount === 0">
+              <el-button :icon="Bell" circle size="small" />
+            </el-badge>
+          </template>
+          <div v-if="pushEvents.length === 0" class="push-empty">暂无推送事件</div>
+          <div v-else class="push-list">
+            <div
+              v-for="event in pushEvents"
+              :key="event.id"
+              class="push-event-item"
+              :class="{ unread: !event.read }"
+              @click="handlePushEventClick(event)"
+            >
+              <div class="push-event-title">
+                <el-tag
+                  :type="event.priority === 'high' ? 'danger' : event.priority === 'medium' ? 'warning' : 'info'"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ event.eventType }}
+                </el-tag>
+                <span class="push-event-dot" v-if="!event.read"></span>
+              </div>
+              <div class="push-event-content">{{ event.title }}</div>
+              <div class="push-event-time">{{ formatPushTime(event.pushedAt) }}</div>
+            </div>
+          </div>
+        </el-popover>
+
         <div class="user-info" v-if="authStore.user">
           <el-avatar :size="28">{{ authStore.user.displayName?.charAt(0) }}</el-avatar>
           <span class="user-name">{{ authStore.user.displayName }}</span>
@@ -78,12 +115,14 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Edit, SwitchButton, User, Setting,
+  Edit, SwitchButton, User, Setting, Bell,
   Message, Promotion, Files, Delete, WarningFilled, Folder,
 } from '@element-plus/icons-vue'
 import type { FolderItem } from '@/types/folder'
+import type { PushEvent } from '@/types/mail'
 import { getFolderList } from '@/api/folder'
 import { logout } from '@/api/auth'
+import { listPushEvents, markPushEventRead } from '@/api/intelligence'
 import { useAuthStore } from '@/stores/auth'
 import { useMailStore } from '@/stores/mail'
 
@@ -143,6 +182,49 @@ async function loadFolders() {
   } finally {
     foldersLoading.value = false
   }
+}
+
+// ---------- 推送事件通知 ----------
+
+const pushEvents = ref<PushEvent[]>([])
+const pushEventsLoading = ref(false)
+
+const unreadPushCount = ref(0)
+
+async function loadPushEvents() {
+  if (pushEventsLoading.value) return
+  pushEventsLoading.value = true
+  try {
+    pushEvents.value = await listPushEvents()
+    unreadPushCount.value = pushEvents.value.filter((e) => !e.read).length
+  } catch {
+    pushEvents.value = []
+  } finally {
+    pushEventsLoading.value = false
+  }
+}
+
+async function handlePushEventClick(event: PushEvent) {
+  if (!event.read) {
+    try {
+      await markPushEventRead(event.id)
+      event.read = true
+      unreadPushCount.value = Math.max(0, unreadPushCount.value - 1)
+    } catch {
+      // 静默处理
+    }
+  }
+  // TODO: 点击推送事件可导航到相关邮件详情
+}
+
+function formatPushTime(isoString: string): string {
+  if (!isoString) return ''
+  return new Date(isoString).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // 退出登录
@@ -243,5 +325,57 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 推送事件通知 */
+.push-empty {
+  text-align: center;
+  padding: 16px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.push-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.push-event-item {
+  padding: 10px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.push-event-item:hover {
+  background: #f9fafb;
+}
+.push-event-item.unread {
+  background: #eff6ff;
+}
+
+.push-event-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.push-event-dot {
+  width: 6px;
+  height: 6px;
+  background: #2563eb;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.push-event-content {
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 2px;
+}
+
+.push-event-time {
+  font-size: 12px;
+  color: #9ca3af;
 }
 </style>

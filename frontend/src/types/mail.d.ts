@@ -125,6 +125,28 @@ export interface MailAccountRequest {
   authPassword: string
 }
 
+// ---------- 邮件接收处理（对应后端 ProcessMessageRequest） ----------
+
+export interface ProcessMailRequest {
+  userId: number
+  accountId: number
+  messageUid: string
+  fromAddress: string
+  to: string[]
+  cc?: string[]
+  bcc?: string[]
+  subject: string
+  content: string
+}
+
+/** process 接口响应：后端返回被创建/处理的邮件摘要 */
+export interface ProcessMailResponse {
+  id: number
+  spamLabel: string
+  priorityLabel: string
+  riskLevel: string
+}
+
 // ---------- intelligence ----------
 
 export interface ThreatIndicator {

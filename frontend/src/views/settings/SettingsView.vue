@@ -8,6 +8,9 @@
           <el-button :icon="Refresh" :loading="syncingFolders" @click="handleSyncFolders">
             同步文件夹
           </el-button>
+          <el-button :icon="Message" :loading="processingMail" @click="openProcessDialog">
+            手动接收邮件
+          </el-button>
           <el-button type="primary" :icon="Plus" @click="openCreateDialog">新增账号</el-button>
         </div>
       </header>
@@ -72,6 +75,53 @@
 
       <el-empty v-if="!loading && accounts.length === 0" description="暂无邮箱账号，请新增" :image-size="80" />
     </section>
+
+    <!-- 手动接收邮件弹窗 -->
+    <el-dialog
+      v-model="processDialogVisible"
+      title="手动接收邮件"
+      width="560px"
+      :close-on-click-modal="false"
+      @closed="resetProcessForm"
+    >
+      <el-form ref="processFormRef" :model="processForm" :rules="processFormRules" label-width="100px">
+        <el-form-item label="发件账号" prop="accountId">
+          <el-select
+            v-model="processForm.accountId"
+            placeholder="选择接收账号"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="acc in accounts"
+              :key="acc.id"
+              :label="`${acc.displayName || ''} <${acc.emailAddress}>`"
+              :value="acc.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="发件人" prop="fromAddress">
+          <el-input v-model="processForm.fromAddress" placeholder="sender@example.com" />
+        </el-form-item>
+        <el-form-item label="邮件UID" prop="messageUid">
+          <el-input v-model="processForm.messageUid" placeholder="邮件唯一标识" />
+        </el-form-item>
+        <el-form-item label="主题" prop="subject">
+          <el-input v-model="processForm.subject" placeholder="邮件主题" />
+        </el-form-item>
+        <el-form-item label="正文" prop="content">
+          <el-input
+            v-model="processForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="邮件正文内容..."
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="processDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="processingMail" @click="handleProcessMail">接收并分析</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
@@ -147,16 +197,17 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, Message } from '@element-plus/icons-vue'
 import {
   getMailAccounts,
   createMailAccount,
   updateMailAccount,
   deleteMailAccount,
   testMailAccount,
+  processMail,
 } from '@/api/mail'
 import { syncFolders } from '@/api/folder'
-import type { MailAccount, MailAccountRequest } from '@/types/mail'
+import type { MailAccount, MailAccountRequest, ProcessMailRequest } from '@/types/mail'
 
 // ---------- 列表数据 ----------
 
@@ -309,6 +360,77 @@ async function handleSubmit() {
     ElMessage.error(msg)
   } finally {
     submitting.value = false
+  }
+}
+
+// ---------- 手动接收邮件 ----------
+
+const processDialogVisible = ref(false)
+const processingMail = ref(false)
+const processFormRef = ref<FormInstance>()
+
+const defaultProcessForm: ProcessMailRequest & { userId: number } = {
+  userId: 1,
+  accountId: 0,
+  messageUid: '',
+  fromAddress: '',
+  to: [],
+  subject: '',
+  content: '',
+}
+
+const processForm = ref({ ...defaultProcessForm })
+
+const processFormRules: FormRules = {
+  accountId: [{ required: true, message: '请选择发件账号', trigger: 'change' }],
+  fromAddress: [
+    { required: true, message: '请输入发件人地址', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+  ],
+  messageUid: [{ required: true, message: '请输入邮件UID', trigger: 'blur' }],
+  subject: [{ required: true, message: '请输入邮件主题', trigger: 'blur' }],
+  content: [{ required: true, message: '请输入邮件正文', trigger: 'blur' }],
+}
+
+function resetProcessForm() {
+  processForm.value = { ...defaultProcessForm }
+  processFormRef.value?.resetFields()
+}
+
+function openProcessDialog() {
+  resetProcessForm()
+  // 默认选中第一个可用账号
+  if (accounts.value.length > 0) {
+    const active = accounts.value.find((a) => a.status === 1)
+    processForm.value.accountId = active?.id ?? accounts.value[0].id
+  }
+  processDialogVisible.value = true
+}
+
+async function handleProcessMail() {
+  const valid = await processFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  processingMail.value = true
+  try {
+    const result = await processMail({
+      userId: processForm.value.userId,
+      accountId: processForm.value.accountId,
+      messageUid: processForm.value.messageUid,
+      fromAddress: processForm.value.fromAddress,
+      to: processForm.value.to.length > 0 ? processForm.value.to : [processForm.value.fromAddress],
+      subject: processForm.value.subject,
+      content: processForm.value.content,
+    })
+    ElMessage.success(
+      `邮件已接收并分析完成：垃圾=${result.spamLabel} 优先级=${result.priorityLabel} 风险=${result.riskLevel}`,
+    )
+    processDialogVisible.value = false
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '接收邮件失败'
+    ElMessage.error(msg)
+  } finally {
+    processingMail.value = false
   }
 }
 
