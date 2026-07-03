@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { MailItem, MailListParams, MailAccount, SendMailRequest } from '@/types/mail'
+import type { MailSummary, MailListParams, MailAccount, SendMailRequest } from '@/types/mail'
 import { getMailList, getMailAccounts, saveDraft, sendMail } from '@/api/mail'
 
 export const useMailStore = defineStore('mail', () => {
-  const mailList = ref<MailItem[]>([])
-  const currentMail = ref<MailItem | null>(null)
+  const mailList = ref<MailSummary[]>([])
+  const currentMail = ref<MailSummary | null>(null)
   const total = ref(0)
   const loading = ref(false)
 

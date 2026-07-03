@@ -2,6 +2,7 @@ import request from '@/utils/request'
 import type {
   IntelligenceResult,
   MailItem,
+  MailSummary,
   MailListParams,
   MailListResponse,
   PluginStatus,
@@ -23,22 +24,22 @@ export function getMailDetail(id: number): Promise<MailItem> {
   return request.get(`/messages/${id}`)
 }
 
-export function sendMail(data: SendMailRequest): Promise<void> {
+export function sendMail(data: SendMailRequest): Promise<MailItem> {
   return request.post('/messages/send', data)
 }
 
 /**
- * 保存草稿（新建草稿，后端只提供 POST /api/messages/drafts）。
+ * 保存草稿（新建草稿）。
  */
-export function saveDraft(data: SendMailRequest): Promise<{ id: number }> {
+export function saveDraft(data: SendMailRequest): Promise<MailItem> {
   return request.post('/messages/drafts', data)
 }
 
-export function markAsRead(id: number): Promise<void> {
+export function markAsRead(id: number): Promise<MailItem> {
   return request.put(`/messages/${id}/read`, { read: true })
 }
 
-export function markAsUnread(id: number): Promise<void> {
+export function markAsUnread(id: number): Promise<MailItem> {
   return request.put(`/messages/${id}/read`, { read: false })
 }
 
@@ -70,11 +71,11 @@ export function getMailAccounts(): Promise<MailAccount[]> {
   return request.get('/mail-accounts')
 }
 
-export function createMailAccount(data: MailAccountRequest): Promise<void> {
+export function createMailAccount(data: MailAccountRequest): Promise<MailAccount> {
   return request.post('/mail-accounts', data)
 }
 
-export function updateMailAccount(id: number, data: Partial<MailAccountRequest>): Promise<void> {
+export function updateMailAccount(id: number, data: MailAccountRequest): Promise<MailAccount> {
   return request.put(`/mail-accounts/${id}`, data)
 }
 
@@ -82,7 +83,7 @@ export function deleteMailAccount(id: number): Promise<void> {
   return request.delete(`/mail-accounts/${id}`)
 }
 
-export function testMailAccount(id: number): Promise<void> {
+export function testMailAccount(id: number): Promise<{ status: string; message: string }> {
   return request.post(`/mail-accounts/${id}/test`)
 }
 

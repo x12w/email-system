@@ -1,43 +1,66 @@
 import type { PaginatedData } from './api'
 
-export interface MailRecipient {
-  id?: number
-  type: 'to' | 'cc' | 'bcc'
-  emailAddress: string
-  displayName?: string
+// ---------- 邮件列表项（对应后端 MessageSummary） ----------
+
+export interface MailSummary {
+  id: number
+  accountId: number
+  folderId: number
+  fromAddress: string
+  fromName: string | null
+  subject: string | null
+  preview: string | null
+  receivedAt: string | null
+  read: boolean
+  starred: boolean
+  draft: boolean
+  attachmentCount: number
+  spamLabel: string
+  priorityLabel: string
+  riskLevel: string
 }
 
-export interface MailAttachment {
-  id: number
-  originalName: string
-  contentType: string
-  sizeBytes: number
-}
+// ---------- 邮件详情（对应后端 MessageDetail） ----------
 
 export interface MailItem {
   id: number
-  userId: number
   accountId: number
-  folderId: number | null
-  messageUid: string | null
-  messageIdHeader: string | null
+  folderId: number
   fromAddress: string
   fromName: string | null
+  to: string[]
+  cc: string[]
+  bcc: string[]
   subject: string | null
   contentType: string
   content: string | null
   preview: string | null
   sentAt: string | null
   receivedAt: string | null
-  sizeBytes: number
-  readFlag: number
-  starFlag: number
-  draftFlag: number
-  deletedFlag: number
+  read: boolean
+  starred: boolean
+  draft: boolean
   attachmentCount: number
-  recipients?: MailRecipient[]
+  spamLabel: string
+  priorityLabel: string
+  riskLevel: string
+  /** 附件列表（前端扩展字段，用于详情展示） */
   attachments?: MailAttachment[]
 }
+
+// ---------- 邮件附件 ----------
+
+export interface MailAttachment {
+  id: number
+  originalName: string
+  contentType: string
+  sizeBytes: number
+  /** 后端返回的下载 URL 或存储标识 */
+  storageType?: string
+  downloadUrl?: string
+}
+
+// ---------- 发送/保存草稿请求（对应后端 SendMessageRequest） ----------
 
 export interface SendMailRequest {
   accountId: number
@@ -50,11 +73,13 @@ export interface SendMailRequest {
   attachmentIds?: number[]
 }
 
+// ---------- 邮件列表查询参数 ----------
+
 export interface MailListParams {
   accountId?: number
   folderId?: number
   keyword?: string
-  read?: number
+  read?: boolean
   /** 智能垃圾邮件标签筛选：normal / spam */
   spamLabel?: string
   /** 智能优先级标签筛选：high / low */
@@ -65,7 +90,9 @@ export interface MailListParams {
   size?: number
 }
 
-export type MailListResponse = PaginatedData<MailItem>
+export type MailListResponse = PaginatedData<MailSummary>
+
+// ---------- 邮箱账号（对应后端 MailAccountResponse） ----------
 
 export interface MailAccount {
   id: number
@@ -74,24 +101,28 @@ export interface MailAccount {
   displayName: string | null
   smtpHost: string
   smtpPort: number
+  smtpSsl: boolean
   imapHost: string
-  imapPort: number
-  username: string
-  sslEnabled: number
-  activeFlag: number
+  imapPort: number | null
+  imapSsl: boolean
+  authUsername: string
+  status: number
   lastSyncAt: string | null
 }
+
+// ---------- 邮箱账号创建/更新请求（对应后端 MailAccountRequest） ----------
 
 export interface MailAccountRequest {
   emailAddress: string
   displayName?: string
   smtpHost: string
   smtpPort: number
-  imapHost: string
-  imapPort: number
-  username: string
-  password: string
-  sslEnabled?: number
+  smtpSsl: boolean
+  imapHost?: string
+  imapPort?: number
+  imapSsl: boolean
+  authUsername: string
+  authPassword: string
 }
 
 // ---------- intelligence ----------

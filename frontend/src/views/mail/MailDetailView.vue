@@ -5,7 +5,7 @@
       <el-button text :icon="ArrowLeft" @click="router.back()">返回列表</el-button>
       <div class="detail-actions">
         <el-button :icon="RefreshRight" @click="toggleRead">
-          {{ mail?.readFlag ? '标记未读' : '标记已读' }}
+          {{ mail?.read ? '标记未读' : '标记已读' }}
         </el-button>
         <el-button :icon="Delete" type="danger" plain @click="handleDelete">删除</el-button>
       </div>
@@ -25,13 +25,13 @@
           <span class="meta-label">发件人：</span>
           <span class="meta-value">{{ mail.fromName ? `${mail.fromName} <${mail.fromAddress}>` : mail.fromAddress }}</span>
         </div>
-        <div class="meta-row" v-if="recipientsTo.length">
+        <div class="meta-row" v-if="mail.to && mail.to.length">
           <span class="meta-label">收件人：</span>
-          <span class="meta-value">{{ recipientsTo.join('; ') }}</span>
+          <span class="meta-value">{{ mail.to.join('; ') }}</span>
         </div>
-        <div class="meta-row" v-if="recipientsCc.length">
+        <div class="meta-row" v-if="mail.cc && mail.cc.length">
           <span class="meta-label">抄送：</span>
-          <span class="meta-value">{{ recipientsCc.join('; ') }}</span>
+          <span class="meta-value">{{ mail.cc.join('; ') }}</span>
         </div>
         <div class="meta-row">
           <span class="meta-label">时间：</span>
@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -89,14 +89,6 @@ const mail = ref<MailItem | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
-// 提取收件人/抄送地址
-const recipientsTo = computed(() =>
-  mail.value?.recipients?.filter((r) => r.type === 'to').map((r) => r.displayName || r.emailAddress) || [],
-)
-const recipientsCc = computed(() =>
-  mail.value?.recipients?.filter((r) => r.type === 'cc').map((r) => r.displayName || r.emailAddress) || [],
-)
-
 async function loadDetail() {
   const id = Number(route.params.id)
   if (!id) {
@@ -108,9 +100,9 @@ async function loadDetail() {
   try {
     mail.value = await getMailDetail(id)
     // 自动标记已读
-    if (mail.value && !mail.value.readFlag) {
+    if (mail.value && !mail.value.read) {
       markAsRead(id).then(() => {
-        if (mail.value) mail.value.readFlag = 1
+        if (mail.value) mail.value.read = true
       }).catch(() => {})
     }
   } catch (err: unknown) {
@@ -125,13 +117,13 @@ async function toggleRead() {
   if (!mail.value) return
   const id = mail.value.id
   try {
-    if (mail.value.readFlag) {
+    if (mail.value.read) {
       await markAsUnread(id)
-      mail.value.readFlag = 0
+      mail.value.read = false
       ElMessage.success('已标记为未读')
     } else {
       await markAsRead(id)
-      mail.value.readFlag = 1
+      mail.value.read = true
       ElMessage.success('已标记为已读')
     }
   } catch {

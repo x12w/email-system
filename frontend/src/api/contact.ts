@@ -1,15 +1,18 @@
 import request from '@/utils/request'
-import type { ContactItem, ContactRequest, ContactListParams, ContactListResponse } from '@/types/contact'
+import type { ContactItem, ContactRequest } from '@/types/contact'
 
-export function getContactList(params: ContactListParams): Promise<ContactListResponse> {
-  return request.get('/contacts', { params })
+/**
+ * 获取联系人列表（后端返回 List，无分页）。
+ */
+export function getContactList(keyword?: string): Promise<ContactItem[]> {
+  return request.get('/contacts', { params: keyword ? { keyword } : {} })
 }
 
-export function createContact(data: ContactRequest): Promise<void> {
+export function createContact(data: ContactRequest): Promise<ContactItem> {
   return request.post('/contacts', data)
 }
 
-export function updateContact(id: number, data: ContactRequest): Promise<void> {
+export function updateContact(id: number, data: ContactRequest): Promise<ContactItem> {
   return request.put(`/contacts/${id}`, data)
 }
 

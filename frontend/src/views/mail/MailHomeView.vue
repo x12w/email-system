@@ -20,8 +20,8 @@
           @change="onReadFilterChange"
         >
           <el-option label="全部" value="" />
-          <el-option label="未读" :value="0" />
-          <el-option label="已读" :value="1" />
+          <el-option label="未读" :value="false" />
+          <el-option label="已读" :value="true" />
         </el-select>
       </div>
       <div class="toolbar-right">
@@ -57,16 +57,16 @@
 
       <el-table-column width="36" align="center">
         <template #default="{ row }">
-          <el-icon v-if="row.starFlag" color="#f59e0b" :size="14"><StarFilled /></el-icon>
+          <el-icon v-if="row.starred" color="#f59e0b" :size="14"><StarFilled /></el-icon>
           <el-icon v-else color="#d1d5db" :size="14"><Star /></el-icon>
         </template>
       </el-table-column>
 
-      <!-- 发件人（发件箱/已发送显示收件人） -->
-      <el-table-column :label="mailStore.currentFolderType === 'sent' ? '收件人' : '发件人'" width="160">
+      <!-- 发件人 -->
+      <el-table-column label="发件人" width="160">
         <template #default="{ row }">
-          <span class="mail-sender" :class="{ 'font-bold': !row.readFlag }">
-            {{ senderDisplay(row) }}
+          <span class="mail-sender" :class="{ 'font-bold': !row.read }">
+            {{ row.fromName || row.fromAddress }}
           </span>
         </template>
       </el-table-column>
@@ -74,7 +74,7 @@
       <el-table-column label="主题" min-width="240">
         <template #default="{ row }">
           <div class="mail-subject-cell">
-            <span class="mail-subject" :class="{ 'font-bold': !row.readFlag }">
+            <span class="mail-subject" :class="{ 'font-bold': !row.read }">
               {{ row.subject || '(无主题)' }}
             </span>
             <span class="mail-preview">{{ row.preview }}</span>
@@ -92,7 +92,7 @@
 
       <el-table-column label="时间" width="150" align="right">
         <template #default="{ row }">
-          <span class="mail-time">{{ formatTime(row.receivedAt || row.sentAt) }}</span>
+          <span class="mail-time">{{ formatTime(row.receivedAt) }}</span>
         </template>
       </el-table-column>
 
@@ -137,7 +137,7 @@ const mailStore = useMailStore()
 
 const tableRef = ref<InstanceType<typeof ElTable>>()
 const keyword = ref('')
-const readFilter = ref<number | string>('')
+const readFilter = ref<boolean | string>('')
 const currentPageModel = ref(mailStore.currentPage)
 const selectedIds = ref<number[]>([])
 
@@ -180,8 +180,8 @@ function onSearchClear() {
   loadMailList()
 }
 
-function onReadFilterChange(value: number | string) {
-  mailStore.setFilters({ read: value === '' ? undefined : (value as number) })
+function onReadFilterChange(value: boolean | string) {
+  mailStore.setFilters({ read: value === '' ? undefined : (value as boolean) })
   loadMailList()
 }
 
@@ -236,23 +236,14 @@ async function handleDelete(id: number) {
   }
 }
 
-function senderDisplay(row: { fromName: string | null; fromAddress: string; recipients?: { type: string; emailAddress: string; displayName?: string }[] }): string {
-  // 已发送文件夹显示收件人
-  if (mailStore.currentFolderType === 'sent') {
-    const toList = row.recipients?.filter((r) => r.type === 'to').map((r) => r.displayName || r.emailAddress) || []
-    return toList.join('; ') || row.fromAddress
-  }
-  return row.fromName || row.fromAddress
-}
-
-function openDetail(row: { id: number; readFlag: number; draftFlag: number }) {
+function openDetail(row: { id: number; read: boolean; draft: boolean }) {
   // 草稿邮件 → 跳转写邮件页编辑
-  if (row.draftFlag === 1) {
+  if (row.draft) {
     router.push(`/compose?draftId=${row.id}`)
     return
   }
   // 未读邮件先标记已读
-  if (!row.readFlag) {
+  if (!row.read) {
     markAsRead(row.id).catch(() => {})
   }
   router.push(`/mail/${row.id}`)
@@ -260,8 +251,8 @@ function openDetail(row: { id: number; readFlag: number; draftFlag: number }) {
 
 // ---------- 工具函数 ----------
 
-function rowClassName({ row }: { row: { readFlag: number } }) {
-  return row.readFlag ? '' : 'row-unread'
+function rowClassName({ row }: { row: { read: boolean } }) {
+  return row.read ? '' : 'row-unread'
 }
 
 function formatTime(isoString: string | null): string {

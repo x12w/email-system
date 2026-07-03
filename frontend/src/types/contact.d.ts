@@ -1,29 +1,18 @@
-import type { PaginatedData } from './api'
+// ---------- 联系人（对应后端 ContactResponse） ----------
 
 export interface ContactItem {
   id: number
-  userId: number
   name: string
   emailAddress: string
   phone: string | null
-  company: string | null
-  department: string | null
   remark: string | null
 }
+
+// ---------- 联系人创建/更新请求（对应后端 ContactRequest） ----------
 
 export interface ContactRequest {
   name: string
   emailAddress: string
   phone?: string
-  company?: string
-  department?: string
   remark?: string
 }
-
-export interface ContactListParams {
-  keyword?: string
-  page?: number
-  size?: number
-}
-
-export type ContactListResponse = PaginatedData<ContactItem>

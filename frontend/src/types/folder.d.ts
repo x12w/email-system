@@ -1,15 +1,18 @@
+// ---------- 文件夹（对应后端 FolderResponse） ----------
+
 export interface FolderItem {
   id: number
-  userId: number
   accountId: number
   name: string
   remoteName: string | null
-  type: 'inbox' | 'sent' | 'draft' | 'trash' | 'spam' | 'custom'
+  /** 文件夹类型：inbox / sent / draft / trash / spam / custom */
+  type: string
   unreadCount: number
   totalCount: number
-  sortOrder: number
 }
 
-export interface SyncFolderRequest {
-  accountId: number
+// ---------- 同步文件夹响应 ----------
+
+export interface SyncFolderResult {
+  status: string
 }

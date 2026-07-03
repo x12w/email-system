@@ -53,7 +53,7 @@
       </el-select>
     </div>
 
-    <!-- 收件人 -->
+    <!-- 收件人（支持联系人自动补全） -->
     <div class="compose-field">
       <label class="compose-label">收件人</label>
       <el-select
@@ -62,10 +62,20 @@
         filterable
         allow-create
         default-first-option
-        placeholder="输入邮箱地址，回车添加"
+        placeholder="输入邮箱地址或选择联系人"
         class="recipient-select"
         :reserve-keyword="false"
-      />
+        :loading="contactsLoading"
+        @focus="ensureContacts"
+        @remove-tag="onRemoveToTag"
+      >
+        <el-option
+          v-for="contact in contactOptions"
+          :key="contact.emailAddress"
+          :label="`${contact.name} <${contact.emailAddress}>`"
+          :value="contact.emailAddress"
+        />
+      </el-select>
     </div>
 
     <!-- 抄送（可折叠） -->
@@ -81,10 +91,18 @@
         filterable
         allow-create
         default-first-option
-        placeholder="输入邮箱地址，回车添加"
+        placeholder="输入邮箱地址或选择联系人"
         class="recipient-select"
         :reserve-keyword="false"
-      />
+        :loading="contactsLoading"
+      >
+        <el-option
+          v-for="contact in contactOptions"
+          :key="'cc-' + contact.emailAddress"
+          :label="`${contact.name} <${contact.emailAddress}>`"
+          :value="contact.emailAddress"
+        />
+      </el-select>
     </div>
 
     <!-- 密送（可折叠） -->
@@ -100,10 +118,18 @@
         filterable
         allow-create
         default-first-option
-        placeholder="输入邮箱地址，回车添加"
+        placeholder="输入邮箱地址或选择联系人"
         class="recipient-select"
         :reserve-keyword="false"
-      />
+        :loading="contactsLoading"
+      >
+        <el-option
+          v-for="contact in contactOptions"
+          :key="'bcc-' + contact.emailAddress"
+          :label="`${contact.name} <${contact.emailAddress}>`"
+          :value="contact.emailAddress"
+        />
+      </el-select>
     </div>
 
     <!-- 主题 -->
@@ -234,6 +260,8 @@ import {
 } from '@element-plus/icons-vue'
 import { useMailStore } from '@/stores/mail'
 import { getMailDetail, uploadAttachment } from '@/api/mail'
+import { getContactList } from '@/api/contact'
+import type { ContactItem } from '@/types/contact'
 
 interface AttachmentEntry {
   tempId: number
@@ -278,16 +306,40 @@ let tempIdCounter = 0
 const draftId = ref<number | null>(null)
 const isEditingDraft = ref(false)
 
+// ---------- 联系人自动补全 ----------
+
+const contacts = ref<ContactItem[]>([])
+const contactsLoading = ref(false)
+const contactOptions = ref<ContactItem[]>([])
+
+async function ensureContacts() {
+  if (contacts.value.length === 0) {
+    contactsLoading.value = true
+    try {
+      contacts.value = await getContactList()
+      contactOptions.value = contacts.value
+    } catch {
+      contacts.value = []
+    } finally {
+      contactsLoading.value = false
+    }
+  }
+}
+
+function onRemoveToTag() {
+  // Element Plus select remove-tag 后不需要额外处理
+}
+
 // ---------- 账号加载 ----------
 
 async function ensureAccounts() {
   if (mailStore.accounts.length === 0) {
     await mailStore.fetchAccounts()
-    // 默认选中第一个活跃账号
-    if (!form.accountId && mailStore.accounts.length > 0) {
-      const active = mailStore.accounts.find((a) => a.activeFlag === 1)
-      form.accountId = active?.id ?? mailStore.accounts[0].id
-    }
+  }
+  // 默认选中第一个活跃账号（status === 1 表示活跃）
+  if (!form.accountId && mailStore.accounts.length > 0) {
+    const active = mailStore.accounts.find((a) => a.status === 1)
+    form.accountId = active?.id ?? mailStore.accounts[0].id
   }
 }
 
@@ -297,7 +349,7 @@ async function loadDraft(id: number) {
   loadingDraft.value = true
   try {
     const mail = await getMailDetail(id)
-    if (mail.draftFlag !== 1) {
+    if (!mail.draft) {
       errorMsg.value = '该邮件不是草稿，无法编辑'
       return
     }
@@ -307,19 +359,17 @@ async function loadDraft(id: number) {
     form.subject = mail.subject || ''
     form.content = mail.content || ''
 
-    // 填充收件人
-    if (mail.recipients) {
-      form.to = mail.recipients.filter((r) => r.type === 'to').map((r) => r.emailAddress)
-      const ccList = mail.recipients.filter((r) => r.type === 'cc').map((r) => r.emailAddress)
-      if (ccList.length > 0) {
-        form.cc = ccList
-        showCc.value = true
-      }
-      const bccList = mail.recipients.filter((r) => r.type === 'bcc').map((r) => r.emailAddress)
-      if (bccList.length > 0) {
-        form.bcc = bccList
-        showBcc.value = true
-      }
+    // 填充收件人（后端返回 string[]，直接使用）
+    if (mail.to && mail.to.length > 0) {
+      form.to = mail.to
+    }
+    if (mail.cc && mail.cc.length > 0) {
+      form.cc = mail.cc
+      showCc.value = true
+    }
+    if (mail.bcc && mail.bcc.length > 0) {
+      form.bcc = mail.bcc
+      showBcc.value = true
     }
 
     // 恢复附件（已保存到服务端的附件）
@@ -512,9 +562,10 @@ async function handleSaveDraft() {
   savingDraft.value = true
 
   try {
+    // B5 修复：空收件人时发送 [] 而不是 ['']
     const payload = {
       accountId: form.accountId,
-      to: form.to.length > 0 ? form.to : [''],
+      to: form.to.length > 0 ? form.to : [] as string[],
       cc: form.cc.length > 0 ? form.cc : undefined,
       bcc: form.bcc.length > 0 ? form.bcc : undefined,
       subject: form.subject || '',
