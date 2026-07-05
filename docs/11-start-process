@@ -1,0 +1,114 @@
+## 快速启动 Demo
+
+以下步骤启动本地开发环境，可在浏览器中打开前端页面并完整体验系统功能。
+
+### 前置环境
+
+| 工具 | 最低版本 |
+|------|----------|
+| JDK | 17 或 21 |
+| Maven | 3.9+ |
+| Node.js | 20+ |
+| Docker + Docker Compose | 最新稳定版 |
+
+### 第一步：启动基础设施
+
+项目使用 Docker Compose 管理 MySQL、Redis、MinIO（对象存储）、Mailpit（邮件测试）四个基础服务。
+
+```bash
+# 在项目根目录执行
+docker-compose up -d
+```
+
+启动后端口占用：
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| MySQL | 3306 | 数据库 |
+| Redis | 6379 | 缓存 |
+| MinIO API | 9000 | 对象存储 |
+| MinIO Console | 9001 | MinIO 管理界面 |
+| Mailpit SMTP | 1025 | 邮件发送测试 |
+| Mailpit Web UI | 8025 | 邮件可视化界面 |
+
+> **注意：** 当前 Demo 阶段后端使用内存数据（`DemoMailboxService`），不依赖 MySQL 表结构。MySQL 和 Redis 只需保持运行即可，后端启动时通过连接校验即可正常工作。
+
+### 第二步：（可选）初始化数据库
+
+如果希望为后续开发准备数据库表结构，可手动执行迁移 SQL：
+
+```bash
+docker exec -i email-system-mysql mysql -uemail_user -pemail_password email_system < backend/src/main/resources/db/migration/V1__init_schema.sql
+```
+
+> **说明：** 项目尚未集成 Flyway，SQL 迁移需手动执行。Demo 模式可在不执行此步骤的情况下正常运行。
+
+### 第三步：启动后端
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+后端默认以 `dev` profile 启动，监听 `http://localhost:8080/api`。
+
+启动成功标志：
+
+```
+Started EmailSystemApplication in X.XXX seconds
+```
+
+健康检查：
+
+```bash
+curl http://localhost:8080/api/health
+# 返回: {"code":0,"message":"ok","data":{"status":"UP"}}
+```
+
+### 第四步：启动前端
+
+```bash
+cd frontend
+npm install
+cp .env.example .env    # Windows: copy .env.example .env
+npm run dev
+```
+
+前端开发服务器运行在 `http://localhost:5173`，Vite 自动将 `/api` 请求代理到后端 `http://localhost:8080`。
+
+### 第五步：打开浏览器
+
+访问 **http://localhost:5173** ，使用以下凭据登录：
+
+| 字段 | 值 |
+|------|-----|
+| 用户名 | `admin` |
+| 密码 | `password` |
+
+
+登录后你将看到：
+
+- **左侧边栏** — 文件夹（收件箱/已发送/草稿箱/垃圾邮件）、邮箱账号、智能分析面板
+- **中间邮件列表** — 5 封 Demo 邮件，支持关键词搜索、已读/未读筛选、优先级/风险等级过滤
+- **右侧邮件详情** — 点击邮件查看完整内容和元数据
+- **顶部工具栏** — 搜索框、主题切换（亮色/暗色）、发送邮件入口
+
+### 附加工具
+
+| 工具 | 地址 | 说明 |
+|------|------|------|
+| Mailpit Web UI | http://localhost:8025 | 查看系统发出的测试邮件 |
+| MinIO Console | http://localhost:9001 | 管理对象存储（用户名/密码：`minioadmin`/`minioadmin123`） |
+
+
+## 关闭环境
+
+```bash
+# 停止基础设施（数据卷保留）
+docker-compose down
+
+# 停止并删除数据卷（完全重置）
+docker-compose down -v
+
+# 前后端分别按 Ctrl+C 终止
+```
