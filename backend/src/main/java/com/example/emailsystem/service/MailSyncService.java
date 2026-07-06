@@ -51,14 +51,19 @@ public class MailSyncService {
     }
 
     public void syncUserAccounts(Long userId) {
-        List<MailAccount> accounts = mailAccountService.listAccounts(userId);
-        for (MailAccount account : accounts) {
-            try {
-                syncInbox(account);
-            } catch (Exception e) {
-                log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
+        new Thread(() -> {
+            List<MailAccount> accounts = mailAccountService.listAccounts(userId);
+            for (MailAccount account : accounts) {
+                try {
+                    int count = syncInbox(account);
+                    if (count > 0) {
+                        log.info("IMAP 同步完成 account={}: {} 封新邮件", account.getEmailAddress(), count);
+                    }
+                } catch (Exception e) {
+                    log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
+                }
             }
-        }
+        }, "imap-sync-user-" + userId).start();
     }
 
     public int syncInbox(MailAccount account) {
@@ -68,18 +73,17 @@ public class MailSyncService {
         }
         int count = 0;
         Properties props = new Properties();
-        props.put("mail.store.protocol", "imap");
-        props.put("mail.imap.host", account.getImapHost());
-        props.put("mail.imap.port", String.valueOf(account.getImapPort()));
-        props.put("mail.imap.ssl.enable",
-            account.getImapSsl() != null && account.getImapSsl() == 1 ? "true" : "false");
-        props.put("mail.imap.auth", "true");
+        props.put("mail.store.protocol", "imaps");
+        props.put("mail.imaps.host", account.getImapHost());
+        props.put("mail.imaps.port", String.valueOf(account.getImapPort()));
+        props.put("mail.imaps.auth", "true");
+        props.put("mail.imaps.timeout", "15000");
+        props.put("mail.imaps.connectiontimeout", "10000");
 
         try {
             Session session = Session.getInstance(props);
-            jakarta.mail.Store store = session.getStore("imap");
-            store.connect(account.getImapHost(), account.getImapPort(),
-                account.getAuthUsername(), account.getAuthPasswordEncrypted());
+            jakarta.mail.Store store = session.getStore("imaps");
+            store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
 
             Folder inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);
