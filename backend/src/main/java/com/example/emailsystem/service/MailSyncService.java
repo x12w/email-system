@@ -91,9 +91,22 @@ public class MailSyncService {
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
 
+            // 首次同步仅拉取最近 7 天；后续同步拉取上次同步之后的
+            java.util.Date since;
+            if (account.getLastSyncAt() != null) {
+                since = java.util.Date.from(account.getLastSyncAt()
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant());
+            } else {
+                var cal = java.util.Calendar.getInstance();
+                cal.add(java.util.Calendar.DAY_OF_MONTH, -7);
+                since = cal.getTime();
+            }
+
             Message[] messages = inbox.getMessages();
             for (Message msg : messages) {
-                // 用 messageId 去重，而非依赖 SEEN 标记（Gmail 可能自动标记为已读）
+                if (msg.getReceivedDate() != null && msg.getReceivedDate().before(since)) {
+                    continue; // 跳过旧邮件
+                }
                 String msgId = ((MimeMessage) msg).getMessageID();
                 if (msgId != null && mailMessageMapper.selectCount(
                     new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
@@ -139,6 +152,9 @@ public class MailSyncService {
             }
             inbox.close(false);
             store.close();
+
+            account.setLastSyncAt(LocalDateTime.now());
+            mailAccountService.updateLastSync(account);
 
             if (count > 0) {
                 mailFolderService.updateCounts(inboxFolder.getId(), count, count);

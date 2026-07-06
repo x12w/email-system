@@ -84,6 +84,11 @@ public class MailAccountService {
         return account;
     }
 
+    public void updateLastSync(MailAccount account) {
+        account.setUpdatedAt(LocalDateTime.now());
+        mailAccountMapper.updateById(account);
+    }
+
     public void deleteAccount(Long userId, Long id) {
         requireAccount(userId, id);
         mailAccountMapper.deleteById(id);
