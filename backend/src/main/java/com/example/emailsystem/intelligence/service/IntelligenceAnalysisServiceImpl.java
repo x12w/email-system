@@ -76,6 +76,17 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
                 .toList());
         payload.put("locale", "zh-CN");
 
+        // Include email headers for header analysis
+        if (msg.getHeaders() != null && !msg.getHeaders().isBlank()) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> headers = objectMapper.readValue(msg.getHeaders(), Map.class);
+                payload.put("headers", headers);
+            } catch (Exception e) {
+                log.warn("Failed to parse headers JSON for message {}: {}", messageId, e.getMessage());
+            }
+        }
+
         try {
             String requestJson = objectMapper.writeValueAsString(payload);
             String responseJson = pluginClient.analyzeEmailJson(requestJson);

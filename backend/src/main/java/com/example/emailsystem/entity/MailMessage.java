@@ -28,6 +28,7 @@ public class MailMessage {
     private Integer draftFlag;
     private Integer deletedFlag;
     private Integer attachmentCount;
+    private String headers;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

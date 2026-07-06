@@ -31,7 +31,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["url", "attachment", "sender", "phishing", "html"],
+          "enum": ["url", "attachment", "sender", "phishing", "html", "header"],
           "description": "风险类型"
         },
         "value": {

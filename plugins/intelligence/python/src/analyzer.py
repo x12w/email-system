@@ -9,6 +9,7 @@ from typing import Any
 # 这样 analyzer.py 只负责分析逻辑，不会被大量关键词数据撑满
 from ._version import __version__
 from .config import DEFAULT_CONFIG, PluginConfig
+from .header_analyzer import analyze_headers, detect_reply_to_spoofing
 from .keywords import _HIGH_PRIORITY_KEYWORDS, _SPAM_KEYWORDS, _PHISHING_KEYWORDS
 
 
@@ -189,6 +190,19 @@ def analyze_email(payload: dict[str, Any], config: PluginConfig | None = None) -
         indicators.extend(_detect_phishing_text(text))
     if config.enable_html_analysis:
         indicators.extend(_detect_html_risks(html_content))
+    if config.enable_header_analysis:
+        headers = payload.get("headers") or {}
+        # 仅在提供了邮件头数据时进行分析，避免发送测试等无头场景误报
+        if headers:
+            header_result = analyze_headers(headers)
+            indicators.extend(_header_indicators(header_result))
+            # 如果 From 和 Reply-To 不一致，额外添加发件人欺骗指标
+            reply_to_check = header_result.get("reply_to_check", {})
+            if reply_to_check.get("is_suspicious"):
+                indicators.append(RuleHit(
+                    "sender", reply_to_check.get("reply_to", ""), "medium",
+                    reply_to_check.get("reason", "Reply-To 与 From 域名不一致"),
+                ))
 
     # ========== 风险评分 ==========
     # 风险等级遵循接口文档 5 级定义：none / low / medium / high / critical
@@ -632,6 +646,70 @@ def _detect_html_risks(html_content: str) -> list[RuleHit]:
         hits.append(RuleHit(
             "html", "external_images", "low",
             f"邮件包含 {img_count} 个外部图片链接，可能泄露阅读行为",
+        ))
+
+    return hits
+
+
+def _header_indicators(header_result: dict[str, Any]) -> list[RuleHit]:
+    """将邮件头分析结果转换为风险指标。
+
+    Args:
+        header_result: analyze_headers() 返回的结果字典
+
+    Returns:
+        风险指标列表
+    """
+    hits: list[RuleHit] = []
+
+    # 检查 SPF 结果
+    spf = header_result.get("spf_result", {})
+    if spf.get("checked") and spf.get("result") == "not_found":
+        hits.append(RuleHit(
+            "header", spf.get("spf_record", ""), "medium",
+            spf.get("message", "域名未配置 SPF 记录"),
+        ))
+
+    # 检查 DKIM 结果
+    dkim = header_result.get("dkim_result", {})
+    if dkim.get("checked") and dkim.get("result") == "not_found":
+        hits.append(RuleHit(
+            "header", "", "low",
+            dkim.get("message", "域名未找到 DKIM 记录"),
+        ))
+
+    # 检查 DMARC 结果
+    dmarc = header_result.get("dmarc_result", {})
+    if dmarc.get("checked") and dmarc.get("result") == "not_found":
+        hits.append(RuleHit(
+            "header", "", "medium",
+            dmarc.get("message", "域名未配置 DMARC 记录"),
+        ))
+
+    # 检查认证结果中的失败项
+    auth = header_result.get("authentication", {})
+    if auth.get("spf") == "fail":
+        hits.append(RuleHit(
+            "header", "spf", "high",
+            "SPF 验证失败，发件人身份可能被伪造",
+        ))
+    if auth.get("dkim") == "fail":
+        hits.append(RuleHit(
+            "header", "dkim", "high",
+            "DKIM 验证失败，邮件签名可能被篡改",
+        ))
+    if auth.get("dmarc") == "fail":
+        hits.append(RuleHit(
+            "header", "dmarc", "high",
+            "DMARC 验证失败，邮件可能为伪造",
+        ))
+
+    # 检查 Message-ID
+    msg_id = header_result.get("message_id_check", {})
+    if msg_id.get("is_suspicious"):
+        hits.append(RuleHit(
+            "header", "missing_message_id", "low",
+            "邮件缺少 Message-ID 字段，可能是自动发送的批量邮件",
         ))
 
     return hits

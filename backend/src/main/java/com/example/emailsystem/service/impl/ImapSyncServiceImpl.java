@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Date;
+import java.util.*;
 import java.util.Properties;
 
 @Service
@@ -149,6 +149,23 @@ public class ImapSyncServiceImpl implements ImapSyncService {
                         entity.setStarFlag(flags.contains(Flags.Flag.FLAGGED) ? 1 : 0);
                         entity.setDraftFlag(flags.contains(Flags.Flag.DRAFT) ? 1 : 0);
                         entity.setDeletedFlag(0);
+
+                        // Extract email headers and store as JSON
+                        Map<String, String> headerMap = new LinkedHashMap<>();
+                        try {
+                            Enumeration<Header> allHeaders = mime.getAllHeaders();
+                            while (allHeaders.hasMoreElements()) {
+                                Header h = allHeaders.nextElement();
+                                headerMap.put(h.getName(), h.getValue());
+                            }
+                        } catch (Exception ignored) {
+                            // Header extraction is best-effort
+                        }
+                        if (!headerMap.isEmpty()) {
+                            try {
+                                entity.setHeaders(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(headerMap));
+                            } catch (Exception ignored) {}
+                        }
 
                         messageMapper.insert(entity);
 
