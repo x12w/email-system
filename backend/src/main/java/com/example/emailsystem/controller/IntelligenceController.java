@@ -8,6 +8,7 @@ import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.dto.ThreatIndicator;
 import com.example.emailsystem.intelligence.service.IntelligenceAnalysisService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.emailsystem.mapper.MailPushEventMapper;
 import com.example.emailsystem.mapper.MailThreatIndicatorMapper;
 import org.springframework.security.core.Authentication;
@@ -46,20 +47,21 @@ public class IntelligenceController {
     }
 
     @GetMapping("/threats")
-    public ApiResponse<List<ThreatIndicatorResponse>> listThreats(Authentication auth,
-                                                                   @RequestParam(defaultValue = "1") int page,
-                                                                   @RequestParam(defaultValue = "20") int size) {
+    public ApiResponse<PageResult<ThreatIndicatorResponse>> listThreats(Authentication auth,
+                                                                        @RequestParam(defaultValue = "1") int page,
+                                                                        @RequestParam(defaultValue = "20") int size) {
         Long userId = (Long) auth.getPrincipal();
-        var threats = threatIndicatorMapper.selectList(
+        Page<MailThreatIndicator> p = threatIndicatorMapper.selectPage(
+                new Page<>(page, size),
                 new LambdaQueryWrapper<MailThreatIndicator>()
                         .eq(MailThreatIndicator::getUserId, userId)
                         .orderByDesc(MailThreatIndicator::getId)
         );
-        var responses = threats.stream().map(t -> new ThreatIndicatorResponse(
+        var responses = p.getRecords().stream().map(t -> new ThreatIndicatorResponse(
                 t.getId(), t.getMessageId(), t.getType(), t.getValue(),
                 t.getRiskLevel(), t.getReason(), t.getCreatedAt()
         )).toList();
-        return ApiResponse.ok(responses);
+        return ApiResponse.ok(new PageResult<>(responses, p.getCurrent(), p.getSize(), p.getTotal()));
     }
 
     @GetMapping("/push-events")

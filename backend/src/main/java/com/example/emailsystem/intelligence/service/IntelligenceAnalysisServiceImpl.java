@@ -215,7 +215,7 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
         }
     }
 
-    @Async
+    @Async("analysisExecutor")
     @TransactionalEventListener
     public void onMessageSynced(MailMessageSyncedEvent event) {
         try {

@@ -5,12 +5,16 @@ import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.apache.ibatis.reflection.MetaObject;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.Executor;
 
 @Configuration
+@MapperScan("com.example.emailsystem.mapper")
 public class MybatisPlusConfig {
 
     @Bean
@@ -34,5 +38,16 @@ public class MybatisPlusConfig {
                 this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime::now, LocalDateTime.class);
             }
         };
+    }
+
+    @Bean("analysisExecutor")
+    public Executor analysisExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("analysis-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        return executor;
     }
 }
