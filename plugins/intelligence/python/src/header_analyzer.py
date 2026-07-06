@@ -274,6 +274,21 @@ def check_dmarc(domain: str) -> dict[str, Any]:
     }
 
 
+def _extract_domain(addr: str) -> str:
+    """从邮箱地址中提取 @ 后面的域名。
+
+    Args:
+        addr: 邮箱地址（如 "user@example.com"）
+
+    Returns:
+        域名部分（如 "example.com"），无 @ 时返回空字符串
+    """
+    at_pos = addr.rfind("@")
+    if at_pos == -1:
+        return ""
+    return addr[at_pos + 1:].lower().strip()
+
+
 def detect_reply_to_spoofing(
     from_addr: str,
     reply_to: str | None,
@@ -302,15 +317,8 @@ def detect_reply_to_spoofing(
     if not reply_to:
         return result
 
-    # 提取域名进行比较
-    def extract_domain(addr: str) -> str:
-        at_pos = addr.rfind("@")
-        if at_pos == -1:
-            return ""
-        return addr[at_pos + 1:].lower().strip()
-
-    from_domain = extract_domain(from_addr)
-    reply_domain = extract_domain(reply_to)
+    from_domain = _extract_domain(from_addr)
+    reply_domain = _extract_domain(reply_to)
 
     if not from_domain and not reply_domain:
         return result
@@ -379,7 +387,7 @@ def analyze_headers(headers: dict[str, str]) -> dict[str, Any]:
             headers.get("Reply-To"),
         ),
         "message_id_check": detect_missing_message_id(headers),
-        "spf_result": check_spf(headers.get("From", "")),
-        "dkim_result": check_dkim(headers.get("From", "")),
-        "dmarc_result": check_dmarc(headers.get("From", "")),
+        "spf_result": check_spf(_extract_domain(headers.get("From", ""))),
+        "dkim_result": check_dkim(_extract_domain(headers.get("From", ""))),
+        "dmarc_result": check_dmarc(_extract_domain(headers.get("From", ""))),
     }

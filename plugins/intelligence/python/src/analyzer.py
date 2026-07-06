@@ -8,6 +8,7 @@ from typing import Any
 # 从 keywords.py 加载关键词词库（数据存放在 data/ 目录下的 JSON 文件中）
 # 这样 analyzer.py 只负责分析逻辑，不会被大量关键词数据撑满
 from ._version import __version__
+from .config import DEFAULT_CONFIG, PluginConfig
 from .keywords import _HIGH_PRIORITY_KEYWORDS, _SPAM_KEYWORDS, _PHISHING_KEYWORDS
 
 
@@ -122,7 +123,7 @@ _DOUBLE_EXT_PATTERN = re.compile(
 )
 
 
-def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
+def analyze_email(payload: dict[str, Any], config: PluginConfig | None = None) -> dict[str, Any]:
     """这是整个插件的核心函数，对一封邮件进行全面的安全分析。
 
     分析四个方面：
@@ -136,21 +137,11 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
     - 输出：spam.label、priority.label、risk.level、risk.indicators[].riskLevel
 
     Args:
-        payload: 传入的邮件数据字典，支持以下字段：
-            - requestId:  请求 ID（原样回传）
-            - messageId:  邮件 ID（原样回传）
-            - from:       发件人邮箱地址
-            - to:         收件人地址列表
-            - subject:    邮件主题
-            - plainText:  邮件正文（纯文本）
-            - html:       邮件正文（HTML 格式）
-            - links:      邮件中的链接列表
-            - attachments:邮件附件列表
-            - locale:     语言区域（如 "zh-CN"）
+        payload: 传入的邮件数据字典
+        config:  可选的自定义配置，为 None 时使用 DEFAULT_CONFIG
 
     Returns:
-        分析结果字典，包含 pluginVersion、analyzedAt、spam、priority、
-        risk 和 actions 等字段。
+        分析结果字典
     """
     # ========== 提取输入字段 ==========
     request_id = payload.get("requestId") or ""
@@ -164,6 +155,10 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
     from_name = str(payload.get("fromName") or "")
     to_addrs = payload.get("to") or []
     locale = str(payload.get("locale") or "")
+
+    # 使用配置，未传入时使用默认配置
+    if config is None:
+        config = DEFAULT_CONFIG
 
     # 把邮件主题和正文拼接在一起转小写，方便统一做关键词匹配
     # 如果有 HTML 内容，也一并提取纯文本后加入分析
@@ -182,16 +177,22 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
     spam_score = _score_weighted_keywords(text, _SPAM_KEYWORDS)
 
     # ========== 风险检测 ==========
+    # 每个检测器受 config 中的功能开关控制
     indicators: list[RuleHit] = []
-    indicators.extend(_detect_link_risks(links))
-    indicators.extend(_detect_attachment_risks(attachments))
-    indicators.extend(_detect_sender_spoofing(from_addr, from_name))
-    indicators.extend(_detect_phishing_text(text))
-    indicators.extend(_detect_html_risks(html_content))
+    if config.enable_link_detection:
+        indicators.extend(_detect_link_risks(links))
+    if config.enable_attachment_detection:
+        indicators.extend(_detect_attachment_risks(attachments))
+    if config.enable_sender_detection:
+        indicators.extend(_detect_sender_spoofing(from_addr, from_name))
+    if config.enable_phishing_detection:
+        indicators.extend(_detect_phishing_text(text))
+    if config.enable_html_analysis:
+        indicators.extend(_detect_html_risks(html_content))
 
     # ========== 风险评分 ==========
     # 风险等级遵循接口文档 5 级定义：none / low / medium / high / critical
-    risk_score = min(1.0, 0.25 * len(indicators))
+    risk_score = min(1.0, config.risk_indicator_weight * len(indicators))
     if risk_score >= 0.9:
         risk_level = "critical"
     elif risk_score >= 0.75:
@@ -205,7 +206,7 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
 
     # ========== 标签判定 ==========
     # 优先级标签：文档要求 three levels — low / normal / high
-    if high_priority_score >= 0.5:
+    if high_priority_score >= config.priority_threshold:
         priority_label = "high"
         # 根据分数高低给出具体的理由说明
         if high_priority_score >= 0.8:
@@ -220,7 +221,7 @@ def analyze_email(payload: dict[str, Any]) -> dict[str, Any]:
         priority_reasons = []
 
     # 垃圾邮件标签
-    spam_label = "spam" if spam_score >= 0.6 else "normal"
+    spam_label = "spam" if spam_score >= config.spam_threshold else "normal"
 
     # ========== 行动决策 ==========
     actions: list[str] = []

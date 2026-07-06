@@ -184,10 +184,6 @@ def detect_tracking_pixels(html_content: str) -> list[dict[str, Any]]:
         img_tag = match.group(0)
         src = match.group(1)
 
-        # 检查是否是明显的跟踪像素
-        # 有 width=1 / height=1 的特征
-        is_pixel = bool(re.search(r'width\s*=\s*["\']?\s*["\']?["\']?', img_tag))
-
         width_match = re.search(r'width\s*=\s*["\']?(\d+)["\']?', img_tag, re.IGNORECASE)
         height_match = re.search(r'height\s*=\s*["\']?(\d+)["\']?', img_tag, re.IGNORECASE)
 

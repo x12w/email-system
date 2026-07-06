@@ -19,14 +19,18 @@ from .config import DEFAULT_CONFIG, PluginConfig
 # 批量分析和单封分析的核心逻辑相同，只是多了一层循环。
 
 
-def analyze_emails_batch(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def analyze_emails_batch(
+    payloads: list[dict[str, Any]],
+    config: PluginConfig | None = None,
+) -> list[dict[str, Any]]:
     """批量分析多封邮件，每封邮件独立分析。
 
     对传入的每个邮件 payload，依次调用 analyze_email() 进行分析。
     如果某封邮件的分析出错，不会影响其他邮件的分析（不会抛出异常）。
 
     Args:
-        payloads: 邮件数据字典列表，每个字典的结构同 analyze_email() 的要求
+        payloads: 邮件数据字典列表
+        config:   可选的自定义配置，为 None 时使用默认配置
 
     Returns:
         分析结果字典列表，顺序和输入一致
@@ -35,7 +39,7 @@ def analyze_emails_batch(payloads: list[dict[str, Any]]) -> list[dict[str, Any]]
 
     for i, payload in enumerate(payloads):
         try:
-            result = analyze_email(payload)
+            result = analyze_email(payload, config=config)
             result["_batch_index"] = i  # 记录原始序号，方便对应
             results.append(result)
         except Exception as exc:
@@ -73,9 +77,7 @@ def analyze_batch_with_config(
     if config is None:
         config = DEFAULT_CONFIG
 
-    # 目前配置尚未集成到 analyze_email 中
-    # 这里先把配置信息记录到结果中
-    results = analyze_emails_batch(payloads)
+    results = analyze_emails_batch(payloads, config=config)
 
     # 给结果加上本次使用的配置信息（方便调试）
     for result in results:
@@ -87,6 +89,7 @@ def analyze_batch_with_config(
 def analyze_with_progress(
     payloads: list[dict[str, Any]],
     callback: Any = None,
+    config: PluginConfig | None = None,
 ) -> list[dict[str, Any]]:
     """带进度反馈的批量分析。
 
@@ -95,8 +98,8 @@ def analyze_with_progress(
 
     Args:
         payloads: 邮件数据字典列表
-        callback: 进度回调函数，接收两个参数：(当前进度, 总数)
-                  例如: def on_progress(current: int, total: int): ...
+        callback: 进度回调函数
+        config:   可选的自定义配置
 
     Returns:
         分析结果字典列表
@@ -106,7 +109,7 @@ def analyze_with_progress(
 
     for i, payload in enumerate(payloads):
         try:
-            result = analyze_email(payload)
+            result = analyze_email(payload, config=config)
             result["_batch_index"] = i
             results.append(result)
         except Exception as exc:
