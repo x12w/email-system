@@ -142,7 +142,6 @@ start_backend() {
 
   info "启动后端: $jar"
   nohup java "${env_opts[@]}" -jar "$jar" \
-    --spring.profiles.active=prod \
     > "$BACKEND_LOG" 2>&1 &
   echo $! > "$BACKEND_PID"
 
