@@ -85,20 +85,8 @@ public class MailSyncService {
             jakarta.mail.Store store = session.getStore("imaps");
             store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
 
-            // Gmail: 尝试多种 All Mail 路径（中英文）
-            Folder inbox = null;
-            for (String name : new String[]{"[Gmail]/All Mail", "[Gmail]/所有邮件", "INBOX"}) {
-                try {
-                    inbox = store.getFolder(name);
-                    inbox.open(Folder.READ_ONLY);
-                    log.info("IMAP 已打开文件夹: {}", name);
-                    break;
-                } catch (Exception ignored) {}
-            }
-            if (inbox == null || !inbox.isOpen()) {
-                inbox = store.getFolder("INBOX");
-                inbox.open(Folder.READ_WRITE);
-            }
+            Folder inbox = store.getFolder("INBOX");
+            inbox.open(Folder.READ_WRITE);
 
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
