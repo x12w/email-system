@@ -120,21 +120,38 @@ start_backend() {
     jar=$(ls -t "$BACKEND_DIR/target/"*.jar 2>/dev/null | head -1)
   fi
 
+  # 从 .env 读取配置传给 Java 进程
+  local env_opts=()
+  [ -n "${MYSQL_HOST:-}" ]      && env_opts+=("-DMYSQL_HOST=$MYSQL_HOST")
+  [ -n "${MYSQL_PORT:-}" ]      && env_opts+=("-DMYSQL_PORT=$MYSQL_PORT")
+  [ -n "${MYSQL_DATABASE:-}" ]  && env_opts+=("-DMYSQL_DATABASE=$MYSQL_DATABASE")
+  [ -n "${MYSQL_USER:-}" ]      && env_opts+=("-DMYSQL_USER=$MYSQL_USER")
+  [ -n "${MYSQL_PASSWORD:-}" ]  && env_opts+=("-DMYSQL_PASSWORD=$MYSQL_PASSWORD")
+  [ -n "${REDIS_HOST:-}" ]      && env_opts+=("-DREDIS_HOST=$REDIS_HOST")
+  [ -n "${REDIS_PORT:-}" ]      && env_opts+=("-DREDIS_PORT=$REDIS_PORT")
+  [ -n "${REDIS_PASSWORD:-}" ]  && env_opts+=("-DREDIS_PASSWORD=$REDIS_PASSWORD")
+  [ -n "${JWT_SECRET:-}" ]      && env_opts+=("-DJWT_SECRET=$JWT_SECRET")
+  [ -n "${JWT_EXPIRE_SECONDS:-}" ] && env_opts+=("-DJWT_EXPIRE_SECONDS=$JWT_EXPIRE_SECONDS")
+  [ -n "${STORAGE_TYPE:-}" ]    && env_opts+=("-DSTORAGE_TYPE=$STORAGE_TYPE")
+  [ -n "${MAIL_HOST:-}" ]       && env_opts+=("-DMAIL_HOST=$MAIL_HOST")
+  [ -n "${MAIL_PORT:-}" ]       && env_opts+=("-DMAIL_PORT=$MAIL_PORT")
+
   info "启动后端: $jar"
-  nohup java -jar "$jar" \
+  nohup java "${env_opts[@]}" -jar "$jar" \
     --spring.profiles.active=prod \
     > "$BACKEND_LOG" 2>&1 &
   echo $! > "$BACKEND_PID"
 
   info "等待后端就绪..."
-  for i in $(seq 1 20); do
+  for i in $(seq 1 30); do
     if curl -s http://localhost:8080/api/health | grep -q '"status":"up"'; then
       ok "后端已就绪 → http://localhost:8080/api"
       return 0
     fi
-    sleep 2
+    sleep 3
   done
   err "后端启动超时，查看日志: $BACKEND_LOG"
+  tail -20 "$BACKEND_LOG"
   return 1
 }
 
