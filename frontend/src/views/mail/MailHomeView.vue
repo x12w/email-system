@@ -1,601 +1,472 @@
 <template>
-  <main class="mail-shell">
-    <header class="app-topbar">
-      <div class="topbar-title">
-        <span>智能邮件管理平台</span>
-        <h1>{{ selectedFolderName }}</h1>
-      </div>
-      <div class="topbar-actions">
+  <div class="mail-home">
+    <!-- 顶部工具栏 -->
+    <header class="mail-toolbar">
+      <div class="toolbar-left">
         <el-input
-          v-model="filters.keyword"
-          class="topbar-search"
-          clearable
-          placeholder="搜索邮件"
+          v-model="keyword"
+          placeholder="搜索邮件主题、发件人..."
           :prefix-icon="Search"
-          @keyup.enter="loadMessages"
-          @clear="loadMessages"
+          clearable
+          class="search-input"
+          @input="onSearchInput"
+          @clear="onSearchClear"
         />
-        <el-tooltip content="同步邮件和状态" placement="bottom">
-          <el-button :icon="Refresh" circle @click="loadAll" />
-        </el-tooltip>
-        <button class="theme-switch" type="button" :aria-pressed="isDarkMode" @click="toggleTheme">
-          <span :class="{ active: !isDarkMode }">
-            <el-icon><Sunny /></el-icon>
-            浅色
-          </span>
-          <span :class="{ active: isDarkMode }">
-            <el-icon><Moon /></el-icon>
-            深色
-          </span>
-        </button>
+        <el-select
+          v-model="readFilter"
+          placeholder="读取状态"
+          clearable
+          class="read-filter"
+          @change="onReadFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="未读" :value="false" />
+          <el-option label="已读" :value="true" />
+        </el-select>
+        <el-select
+          v-model="spamLabelFilter"
+          placeholder="垃圾邮件"
+          clearable
+          class="smart-filter"
+          @change="onSpamLabelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="正常" value="normal" />
+          <el-option label="垃圾邮件" value="spam" />
+        </el-select>
+        <el-select
+          v-model="priorityLabelFilter"
+          placeholder="优先级"
+          clearable
+          class="smart-filter"
+          @change="onPriorityLabelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="高" value="high" />
+          <el-option label="低" value="low" />
+        </el-select>
+        <el-select
+          v-model="riskLevelFilter"
+          placeholder="风险等级"
+          clearable
+          class="smart-filter"
+          @change="onRiskLevelFilterChange"
+        >
+          <el-option label="全部" value="" />
+          <el-option label="高" value="high" />
+          <el-option label="中" value="medium" />
+          <el-option label="低" value="low" />
+        </el-select>
+      </div>
+      <div class="toolbar-right">
+        <el-button :icon="Refresh" @click="loadMailList" :loading="mailStore.loading">刷新</el-button>
+        <el-button type="primary" @click="router.push('/compose')">
+          <el-icon><Edit /></el-icon>
+          写邮件
+        </el-button>
+        <el-button :disabled="!selectedIds.length" @click="batchMarkRead">
+          <el-icon><Check /></el-icon>
+          标记已读
+        </el-button>
+        <el-button :disabled="!selectedIds.length" @click="batchMarkUnread">
+          <el-icon><Close /></el-icon>
+          标记未读
+        </el-button>
+        <el-button :disabled="!selectedIds.length" type="danger" plain @click="batchDelete">
+          <el-icon><Delete /></el-icon>
+          删除
+        </el-button>
       </div>
     </header>
 
-    <aside class="mail-sidebar">
-      <div class="brand-row">
-        <div>
-          <h1>邮件系统</h1>
-          <span>{{ authStore.user?.displayName || 'Admin' }}</span>
-        </div>
-        <div class="brand-actions">
-          <el-tooltip :content="isDarkMode ? '切换浅色模式' : '切换黑暗模式'" placement="right">
-            <el-button :icon="isDarkMode ? Sunny : Moon" circle text @click="toggleTheme" />
-          </el-tooltip>
-          <el-tooltip content="退出登录" placement="right">
-            <el-button :icon="SwitchButton" circle text @click="logout" />
-          </el-tooltip>
-        </div>
-      </div>
+    <!-- 邮件列表 -->
+    <el-table
+      ref="tableRef"
+      v-loading="mailStore.loading"
+      :data="mailStore.mailList"
+      row-key="id"
+      :row-class-name="rowClassName"
+      highlight-current-row
+      stripe
+      class="mail-table"
+      @row-click="openDetail"
+      @selection-change="onSelectionChange"
+    >
+      <el-table-column type="selection" width="40" />
 
-      <el-button class="compose-entry" type="primary" :icon="EditPen" @click="openCompose">写邮件</el-button>
+      <el-table-column width="36" align="center">
+        <template #default="{ row }">
+          <el-icon v-if="row.starred" color="#f59e0b" :size="14"><StarFilled /></el-icon>
+          <el-icon v-else color="#d1d5db" :size="14"><Star /></el-icon>
+        </template>
+      </el-table-column>
 
-      <nav class="folder-nav">
-        <button
-          v-for="folder in folders"
-          :key="folder.id"
-          class="folder-item"
-          :class="{ active: folder.id === activeFolderId }"
-          @click="selectFolder(String(folder.id))"
-        >
-          <el-icon><component :is="folderIcon(folder.type)" /></el-icon>
-          <span>{{ folder.name }}</span>
-          <strong>{{ folder.totalCount }}</strong>
-          <el-badge v-if="folder.unreadCount" :value="folder.unreadCount" />
-        </button>
-      </nav>
-
-      <section class="sidebar-section">
-        <h2>邮箱账号</h2>
-        <div v-for="account in accounts" :key="account.id" class="account-row">
-          <span>{{ account.displayName || account.emailAddress }}</span>
-          <small>{{ account.emailAddress }}</small>
-        </div>
-      </section>
-
-      <section class="sidebar-section">
-        <h2>智能插件</h2>
-        <div v-for="plugin in plugins" :key="plugin.name" class="plugin-row">
-          <span>{{ plugin.name }}</span>
-          <el-tag size="small" :type="plugin.enabled ? 'success' : 'info'">{{ plugin.status }}</el-tag>
-        </div>
-      </section>
-    </aside>
-
-    <section class="mail-list-pane">
-      <header class="workspace-header">
-        <div>
-          <span class="section-kicker">{{ selectedFolderName }}</span>
-          <h2>邮件工作台</h2>
-        </div>
-        <div class="summary-strip">
-          <div>
-            <strong>{{ messages.length }}</strong>
-            <span>当前列表</span>
-          </div>
-          <div>
-            <strong>{{ unreadCount }}</strong>
-            <span>未读</span>
-          </div>
-          <div>
-            <strong>{{ highRiskCount }}</strong>
-            <span>风险</span>
-          </div>
-        </div>
-      </header>
-
-      <header class="mail-toolbar">
-        <el-input
-          v-model="filters.keyword"
-          class="mail-toolbar-search"
-          clearable
-          placeholder="搜索发件人、主题或正文摘要"
-          :prefix-icon="Search"
-          @keyup.enter="loadMessages"
-          @clear="loadMessages"
-        />
-        <el-radio-group v-model="filters.readState" @change="loadMessages">
-          <el-radio-button label="all">全部</el-radio-button>
-          <el-radio-button label="unread">未读</el-radio-button>
-          <el-radio-button label="read">已读</el-radio-button>
-        </el-radio-group>
-        <el-select v-model="filters.priorityLabel" clearable placeholder="优先级" @change="loadMessages">
-          <el-option label="高优先级" value="high" />
-          <el-option label="普通" value="normal" />
-          <el-option label="低优先级" value="low" />
-        </el-select>
-        <el-select v-model="filters.riskLevel" clearable placeholder="风险等级" @change="loadMessages">
-          <el-option label="高风险" value="high" />
-          <el-option label="中风险" value="medium" />
-          <el-option label="低风险" value="low" />
-          <el-option label="无风险" value="none" />
-        </el-select>
-        <el-tooltip content="刷新" placement="bottom">
-          <el-button :icon="Refresh" circle @click="loadAll" />
-        </el-tooltip>
-      </header>
-
-      <div class="active-filters">
-        <el-tag v-if="filters.keyword" closable @close="clearFilter('keyword')">关键词：{{ filters.keyword }}</el-tag>
-        <el-tag v-if="filters.priorityLabel" closable type="warning" @close="clearFilter('priorityLabel')">
-          优先级：{{ priorityLabel(filters.priorityLabel) }}
-        </el-tag>
-        <el-tag v-if="filters.riskLevel" closable type="danger" @close="clearFilter('riskLevel')">
-          风险：{{ riskLabel(filters.riskLevel) }}
-        </el-tag>
-      </div>
-
-      <el-skeleton v-if="loading" :rows="8" animated />
-      <div v-else class="message-list">
-        <button
-          v-for="message in messages"
-          :key="message.id"
-          class="message-row"
-          :class="{ active: selectedMessage?.id === message.id, unread: !message.read }"
-          @click="openMessage(message.id)"
-        >
-          <span class="read-dot" />
-          <span class="message-sender">{{ message.fromName || message.fromAddress }}</span>
-          <span class="message-subject">{{ message.subject }}</span>
-          <span class="message-preview">{{ message.preview }}</span>
-          <span class="message-badges">
-            <el-tag v-if="message.priorityLabel === 'high'" size="small" type="warning">高优先</el-tag>
-            <el-tag v-if="['medium', 'high', 'critical'].includes(message.riskLevel)" size="small" type="danger">
-              {{ riskLabel(message.riskLevel) }}
-            </el-tag>
-            <el-tag v-if="message.spamLabel === 'spam'" size="small" type="info">垃圾</el-tag>
+      <!-- 发件人 -->
+      <el-table-column label="发件人" width="160">
+        <template #default="{ row }">
+          <span class="mail-sender" :class="{ 'font-bold': !row.read }">
+            {{ row.fromName || row.fromAddress }}
           </span>
-          <span class="message-time">{{ formatTime(message.receivedAt) }}</span>
-        </button>
-        <el-empty v-if="messages.length === 0" description="没有符合条件的邮件" />
-      </div>
-    </section>
+        </template>
+      </el-table-column>
 
-    <section class="mail-detail-pane">
-      <template v-if="selectedMessage">
-        <header class="detail-header">
-          <div>
-            <span class="section-kicker">邮件详情</span>
-            <h2>{{ selectedMessage.subject }}</h2>
-            <p>{{ selectedMessage.fromName }} &lt;{{ selectedMessage.fromAddress }}&gt;</p>
+      <el-table-column label="主题" min-width="240">
+        <template #default="{ row }">
+          <div class="mail-subject-cell">
+            <span class="mail-subject" :class="{ 'font-bold': !row.read }">
+              {{ row.subject || '(无主题)' }}
+            </span>
+            <span class="mail-preview">{{ row.preview }}</span>
           </div>
-          <div class="detail-actions">
-            <el-tooltip :content="selectedMessage.read ? '标为未读' : '标为已读'" placement="bottom">
-              <el-button :icon="View" circle @click="toggleRead" />
-            </el-tooltip>
-            <el-tooltip content="删除邮件" placement="bottom">
-              <el-button :icon="Delete" circle @click="removeSelectedMessage" />
-            </el-tooltip>
-            <el-button type="primary" :icon="Cpu" :loading="analyzing" @click="runAnalysis">智能分析</el-button>
-          </div>
-        </header>
+        </template>
+      </el-table-column>
 
-        <div class="detail-meta">
-          <span>收件人：{{ selectedMessage.to.join(', ') }}</span>
-          <span>{{ formatTime(selectedMessage.receivedAt) }}</span>
-        </div>
+      <el-table-column width="28" align="center">
+        <template #default="{ row }">
+          <el-icon v-if="row.attachmentCount > 0" :size="14" color="#9ca3af">
+            <Paperclip />
+          </el-icon>
+        </template>
+      </el-table-column>
 
-        <div class="status-line">
-          <el-tag :type="selectedMessage.read ? 'info' : 'success'">{{ selectedMessage.read ? '已读' : '未读' }}</el-tag>
-          <el-tag :type="selectedMessage.priorityLabel === 'high' ? 'warning' : 'info'">
-            {{ priorityLabel(selectedMessage.priorityLabel) }}
+      <!-- 智能标签：垃圾邮件 -->
+      <el-table-column label="垃圾邮件" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.spamLabel"
+            :type="row.spamLabel === 'spam' ? 'danger' : 'success'"
+            size="small"
+            effect="plain"
+          >
+            {{ row.spamLabel === 'spam' ? '垃圾' : '正常' }}
           </el-tag>
-          <el-tag :type="riskTagType(selectedMessage.riskLevel)">{{ riskLabel(selectedMessage.riskLevel) }}</el-tag>
-          <el-tag v-if="selectedMessage.draft" type="info">草稿</el-tag>
-        </div>
+        </template>
+      </el-table-column>
 
-        <article class="message-body" v-html="selectedMessage.content" />
+      <!-- 智能标签：优先级 -->
+      <el-table-column label="优先级" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.priorityLabel"
+            :type="row.priorityLabel === 'high' ? 'warning' : 'info'"
+            size="small"
+            effect="plain"
+          >
+            {{ row.priorityLabel === 'high' ? '高' : '低' }}
+          </el-tag>
+        </template>
+      </el-table-column>
 
-        <section class="intelligence-panel">
-          <div class="panel-title">
-            <h3>智能分析</h3>
-            <span v-if="analysis">{{ analysis.pluginName }} · v{{ analysis.pluginVersion }}</span>
-          </div>
-          <div v-if="analysis" class="analysis-grid">
-            <div>
-              <span>垃圾分</span>
-              <el-progress :percentage="scorePercent(analysis.spamScore)" :stroke-width="8" />
-            </div>
-            <div>
-              <span>优先级分</span>
-              <el-progress :percentage="scorePercent(analysis.priorityScore)" :stroke-width="8" status="warning" />
-            </div>
-            <div>
-              <span>风险分</span>
-              <el-progress :percentage="scorePercent(analysis.riskScore)" :stroke-width="8" status="exception" />
-            </div>
-          </div>
-          <el-table v-if="analysis?.threats.length" :data="analysis.threats" size="small">
-            <el-table-column prop="type" label="类型" width="90" />
-            <el-table-column prop="value" label="命中值" />
-            <el-table-column prop="riskLevel" label="等级" width="90" />
-            <el-table-column prop="reason" label="原因" />
-          </el-table>
-          <el-empty v-else description="暂无风险命中" />
-        </section>
-      </template>
+      <!-- 智能标签：风险等级 -->
+      <el-table-column label="风险" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag
+            v-if="row.riskLevel"
+            :type="riskTagType(row.riskLevel)"
+            size="small"
+            effect="plain"
+          >
+            {{ row.riskLevel === 'high' ? '高' : row.riskLevel === 'medium' ? '中' : '低' }}
+          </el-tag>
+        </template>
+      </el-table-column>
 
-      <div v-else class="detail-empty">
-        <el-icon><Message /></el-icon>
-        <h2>请选择一封邮件</h2>
-      </div>
-    </section>
-  </main>
+      <el-table-column label="时间" width="150" align="right">
+        <template #default="{ row }">
+          <span class="mail-time">{{ formatTime(row.receivedAt) }}</span>
+        </template>
+      </el-table-column>
 
-  <el-drawer v-model="composeVisible" title="写邮件" size="560px">
-    <el-form label-position="top">
-      <el-form-item label="账号">
-        <el-select v-model="composeForm.accountId">
-          <el-option v-for="account in accounts" :key="account.id" :label="account.emailAddress" :value="account.id" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="收件人">
-        <el-input v-model="composeTo" placeholder="user@example.com, team@example.com" />
-      </el-form-item>
-      <el-form-item label="主题">
-        <el-input v-model="composeForm.subject" />
-      </el-form-item>
-      <el-form-item label="正文">
-        <el-input v-model="composeForm.content" type="textarea" :rows="10" />
-      </el-form-item>
-      <div class="drawer-actions">
-        <el-button @click="saveAsDraft">存草稿</el-button>
-        <el-button type="primary" @click="sendCurrentMessage">发送</el-button>
-      </div>
-    </el-form>
-  </el-drawer>
+      <el-table-column label="操作" width="80" align="center" fixed="right">
+        <template #default="{ row }">
+          <el-button text size="small" type="danger" @click.stop="handleDelete(row.id)">
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
-  <aside class="utility-rail">
-    <el-popover placement="left" width="380" trigger="click" @show="loadContacts">
-      <template #reference>
-        <el-button :icon="User" circle />
-      </template>
-      <h3>联系人</h3>
-      <el-input v-model="contactKeyword" placeholder="搜索联系人" clearable @input="loadContacts" />
-      <div class="contact-create">
-        <el-input v-model="contactForm.name" placeholder="姓名" />
-        <el-input v-model="contactForm.emailAddress" placeholder="邮箱地址" />
-        <el-button type="primary" :icon="Plus" @click="addContact">新增</el-button>
-      </div>
-      <div class="contact-list">
-        <p v-for="contact in contacts" :key="contact.id">{{ contact.name }} · {{ contact.emailAddress }}</p>
-      </div>
-    </el-popover>
-    <el-popover placement="left" width="400" trigger="click" @show="loadPushEvents">
-      <template #reference>
-        <el-badge :value="unreadPushCount" :hidden="unreadPushCount === 0">
-          <el-button :icon="Bell" circle />
-        </el-badge>
-      </template>
-      <h3>推送事件</h3>
-      <div class="push-list">
-        <button v-for="event in pushEvents" :key="event.id" @click="openPushEvent(event)">
-          <strong>{{ event.title }}</strong>
-          <span>{{ event.content }}</span>
-        </button>
-      </div>
-    </el-popover>
-  </aside>
+    <!-- 空状态 -->
+    <el-empty v-if="!mailStore.loading && mailStore.mailList.length === 0" description="暂无邮件" />
+
+    <!-- 分页 -->
+    <div v-if="mailStore.total > 0" class="mail-pagination">
+      <el-pagination
+        v-model:current-page="currentPageModel"
+        :page-size="mailStore.pageSize"
+        :total="mailStore.total"
+        layout="total, prev, pager, next"
+        @current-change="onPageChange"
+      />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import {
-  Bell,
-  Cpu,
-  Delete,
-  Document,
-  EditPen,
-  Folder,
-  Message,
-  Moon,
-  Plus,
-  Refresh,
-  Search,
-  Sunny,
-  SwitchButton,
-  User,
-  View
-} from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { ElTable } from 'element-plus'
 import {
-  analyzeMessage,
-  createContact,
-  deleteMessage,
-  getIntelligenceResult,
-  getMessage,
-  listAccounts,
-  listContacts,
-  listFolders,
-  listMessages,
-  listPlugins,
-  listPushEvents,
-  markMessageRead,
-  markPushEventRead,
-  saveDraft,
-  sendMessage,
-  type Contact,
-  type Folder as MailFolder,
-  type IntelligenceResult,
-  type MailAccount,
-  type MessageDetail,
-  type MessageSummary,
-  type PluginStatus,
-  type PushEvent,
-  type SendMessageRequest
-} from '@/api/mail'
-import { useAuthStore } from '@/stores/auth'
+  Search, Edit, Check, Close, Delete, Refresh, StarFilled, Star, Paperclip,
+} from '@element-plus/icons-vue'
+import { markAsRead, markAsUnread, deleteMail } from '@/api/mail'
+import { useMailStore } from '@/stores/mail'
 
 const router = useRouter()
-const authStore = useAuthStore()
+const mailStore = useMailStore()
 
-const accounts = ref<MailAccount[]>([])
-const folders = ref<MailFolder[]>([])
-const messages = ref<MessageSummary[]>([])
-const selectedMessage = ref<MessageDetail | null>(null)
-const analysis = ref<IntelligenceResult | null>(null)
-const contacts = ref<Contact[]>([])
-const pushEvents = ref<PushEvent[]>([])
-const plugins = ref<PluginStatus[]>([])
-const activeFolderId = ref<number>()
-const loading = ref(false)
-const analyzing = ref(false)
-const isDarkMode = ref(document.documentElement.dataset.theme === 'dark')
-const composeVisible = ref(false)
-const composeTo = ref('')
-const contactKeyword = ref('')
+const tableRef = ref<InstanceType<typeof ElTable>>()
+const keyword = ref('')
+const readFilter = ref<boolean | string>('')
+const spamLabelFilter = ref<string>('')
+const priorityLabelFilter = ref<string>('')
+const riskLevelFilter = ref<string>('')
+const currentPageModel = ref(mailStore.currentPage)
+const selectedIds = ref<number[]>([])
 
-const filters = reactive({
-  keyword: '',
-  priorityLabel: '',
-  riskLevel: '',
-  readState: 'all'
+// 搜索防抖计时器
+let searchTimer: ReturnType<typeof setTimeout>
+
+// ---------- 数据加载 ----------
+
+async function loadMailList() {
+  await mailStore.fetchMailList()
+  currentPageModel.value = mailStore.currentPage
+}
+
+// 监听文件夹切换 → 自动加载
+watch(
+  () => mailStore.currentFolderId,
+  () => {
+    keyword.value = ''
+    readFilter.value = ''
+    loadMailList()
+  },
+)
+
+onMounted(() => {
+  loadMailList()
 })
 
-const composeForm = reactive<SendMessageRequest>({
-  accountId: 1,
-  to: [],
-  cc: [],
-  bcc: [],
-  subject: '',
-  contentType: 'html',
-  content: '',
-  attachmentIds: []
-})
+// ---------- 搜索与筛选 ----------
 
-const contactForm = reactive({
-  name: '',
-  emailAddress: '',
-  phone: '',
-  remark: ''
-})
+function onSearchInput() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    mailStore.setFilters({ keyword: keyword.value || undefined })
+    loadMailList()
+  }, 400)
+}
 
-const selectedFolderName = computed(() => folders.value.find((folder) => folder.id === activeFolderId.value)?.name || '全部邮件')
-const unreadCount = computed(() => messages.value.filter((message) => !message.read).length)
-const highRiskCount = computed(() => messages.value.filter((message) => ['medium', 'high', 'critical'].includes(message.riskLevel)).length)
-const unreadPushCount = computed(() => pushEvents.value.filter((event) => !event.read).length)
+function onSearchClear() {
+  mailStore.setFilters({ keyword: undefined })
+  loadMailList()
+}
 
-onMounted(loadAll)
+function onReadFilterChange(value: boolean | string) {
+  mailStore.setFilters({ read: value === '' ? undefined : (value as boolean) })
+  loadMailList()
+}
 
-async function loadAll() {
-  loading.value = true
+function onSpamLabelFilterChange(value: string) {
+  mailStore.setFilters({ spamLabel: value || undefined })
+  loadMailList()
+}
+
+function onPriorityLabelFilterChange(value: string) {
+  mailStore.setFilters({ priorityLabel: value || undefined })
+  loadMailList()
+}
+
+function onRiskLevelFilterChange(value: string) {
+  mailStore.setFilters({ riskLevel: value || undefined })
+  loadMailList()
+}
+
+// ---------- 分页 ----------
+
+function onPageChange(page: number) {
+  mailStore.goToPage(page)
+  currentPageModel.value = page
+}
+
+// ---------- 操作 ----------
+
+function onSelectionChange(rows: { id: number }[]) {
+  selectedIds.value = rows.map((r) => r.id)
+}
+
+async function batchMarkRead() {
+  if (selectedIds.value.length === 0) return
   try {
-    const [accountData, folderData, pluginData, pushData] = await Promise.all([
-      listAccounts(),
-      listFolders(),
-      listPlugins(),
-      listPushEvents()
-    ])
-    accounts.value = accountData
-    folders.value = folderData
-    plugins.value = pluginData
-    pushEvents.value = pushData
-    composeForm.accountId = accounts.value[0]?.id || 1
-    activeFolderId.value = activeFolderId.value || folders.value[0]?.id
-    await loadMessages()
-    if (!selectedMessage.value && messages.value[0]) {
-      await openMessage(messages.value[0].id)
-    }
-  } finally {
-    loading.value = false
+    await Promise.all(selectedIds.value.map((id) => markAsRead(id)))
+    ElMessage.success(`已标记 ${selectedIds.value.length} 封邮件为已读`)
+    loadMailList()
+  } catch {
+    ElMessage.error('操作失败')
   }
 }
 
-async function loadMessages() {
-  const result = await listMessages({
-    folderId: activeFolderId.value,
-    keyword: filters.keyword || undefined,
-    read: filters.readState === 'all' ? undefined : filters.readState === 'read',
-    priorityLabel: filters.priorityLabel || undefined,
-    riskLevel: filters.riskLevel || undefined,
-    page: 1,
-    size: 50
-  })
-  messages.value = result.records
-}
-
-async function selectFolder(index: string) {
-  activeFolderId.value = Number(index)
-  selectedMessage.value = null
-  analysis.value = null
-  await loadMessages()
-}
-
-async function openMessage(id: number) {
-  selectedMessage.value = await getMessage(id)
-  analysis.value = await getIntelligenceResult(id)
-}
-
-async function toggleRead() {
-  if (!selectedMessage.value) return
-  selectedMessage.value = await markMessageRead(selectedMessage.value.id, !selectedMessage.value.read)
-  await loadMessages()
-}
-
-async function runAnalysis() {
-  if (!selectedMessage.value) return
-  analyzing.value = true
+async function batchMarkUnread() {
+  if (selectedIds.value.length === 0) return
   try {
-    analysis.value = await analyzeMessage(selectedMessage.value.id)
-    selectedMessage.value = await getMessage(selectedMessage.value.id)
-    ElMessage.success('智能分析已完成')
-    await loadMessages()
-  } finally {
-    analyzing.value = false
+    await Promise.all(selectedIds.value.map((id) => markAsUnread(id)))
+    ElMessage.success(`已标记 ${selectedIds.value.length} 封邮件为未读`)
+    loadMailList()
+  } catch {
+    ElMessage.error('操作失败')
   }
 }
 
-async function removeSelectedMessage() {
-  if (!selectedMessage.value) return
-  await deleteMessage(selectedMessage.value.id)
-  selectedMessage.value = null
-  analysis.value = null
-  ElMessage.success('邮件已删除')
-  await loadMessages()
+async function batchDelete() {
+  if (selectedIds.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${selectedIds.value.length} 封邮件？`,
+      '删除确认',
+      { type: 'warning' },
+    )
+    await Promise.all(selectedIds.value.map((id) => deleteMail(id)))
+    ElMessage.success('删除成功')
+    loadMailList()
+  } catch {
+    // 用户取消
+  }
 }
 
-function openCompose() {
-  composeVisible.value = true
+async function handleDelete(id: number) {
+  try {
+    await ElMessageBox.confirm('确认删除该邮件？', '删除确认', { type: 'warning' })
+    await deleteMail(id)
+    ElMessage.success('已删除')
+    loadMailList()
+  } catch {
+    // 用户取消
+  }
 }
 
-async function sendCurrentMessage() {
-  composeForm.to = splitRecipients(composeTo.value)
-  await sendMessage(composeForm)
-  resetCompose()
-  ElMessage.success('邮件已发送')
-  await loadMessages()
-}
-
-async function saveAsDraft() {
-  composeForm.to = splitRecipients(composeTo.value)
-  await saveDraft(composeForm)
-  resetCompose()
-  ElMessage.success('草稿已保存')
-  await loadMessages()
-}
-
-async function loadContacts() {
-  contacts.value = await listContacts(contactKeyword.value)
-}
-
-async function addContact() {
-  if (!contactForm.name || !contactForm.emailAddress) {
-    ElMessage.warning('请填写姓名和邮箱地址')
+function openDetail(row: { id: number; read: boolean; draft: boolean }) {
+  // 草稿邮件 → 跳转写邮件页编辑
+  if (row.draft) {
+    router.push(`/compose?draftId=${row.id}`)
     return
   }
-  await createContact(contactForm)
-  contactForm.name = ''
-  contactForm.emailAddress = ''
-  contactForm.phone = ''
-  contactForm.remark = ''
-  await loadContacts()
-  ElMessage.success('联系人已新增')
-}
-
-async function loadPushEvents() {
-  pushEvents.value = await listPushEvents()
-}
-
-async function openPushEvent(event: PushEvent) {
-  await markPushEventRead(event.id)
-  await loadPushEvents()
-  await openMessage(event.messageId)
-}
-
-async function logout() {
-  authStore.clearSession()
-  await router.push('/login')
-}
-
-function toggleTheme() {
-  isDarkMode.value = !isDarkMode.value
-  const theme = isDarkMode.value ? 'dark' : 'light'
-  document.documentElement.dataset.theme = theme
-  localStorage.setItem('theme', theme)
-}
-
-function clearFilter(key: 'keyword' | 'priorityLabel' | 'riskLevel') {
-  filters[key] = ''
-  void loadMessages()
-}
-
-function resetCompose() {
-  composeVisible.value = false
-  composeTo.value = ''
-  composeForm.subject = ''
-  composeForm.content = ''
-  composeForm.attachmentIds = []
-}
-
-function splitRecipients(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function folderIcon(type: string) {
-  if (type === 'draft') return Document
-  if (type === 'sent') return EditPen
-  if (type === 'inbox') return Message
-  return Folder
-}
-
-function scorePercent(value: number) {
-  return Math.round(Math.min(1, Math.max(0, value)) * 100)
-}
-
-function riskTagType(value: string) {
-  return ['medium', 'high', 'critical'].includes(value) ? 'danger' : 'success'
-}
-
-function riskLabel(value: string) {
-  const labels: Record<string, string> = {
-    none: '无风险',
-    low: '低风险',
-    medium: '中风险',
-    high: '高风险',
-    critical: '严重风险'
+  // 未读邮件先标记已读
+  if (!row.read) {
+    markAsRead(row.id).catch(() => {})
   }
-  return labels[value] || value
+  router.push(`/mail/${row.id}`)
 }
 
-function priorityLabel(value: string) {
-  const labels: Record<string, string> = {
-    low: '低优先',
-    normal: '普通',
-    high: '高优先'
+// ---------- 工具函数 ----------
+
+function rowClassName({ row }: { row: { read: boolean } }) {
+  return row.read ? '' : 'row-unread'
+}
+
+function formatTime(isoString: string | null): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  if (isToday) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   }
-  return labels[value] || value
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value))
+/** 根据风险等级返回 el-tag 的 type */
+function riskTagType(level: string): 'danger' | 'warning' | 'info' {
+  if (level === 'high') return 'danger'
+  if (level === 'medium') return 'warning'
+  return 'info'
 }
 </script>
+
+<style scoped>
+.mail-home {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-input {
+  width: 280px;
+}
+.read-filter {
+  width: 110px;
+}
+.smart-filter {
+  width: 110px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mail-table {
+  flex: 1;
+}
+
+.mail-sender {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.mail-subject-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.mail-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-preview {
+  font-size: 12px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-time {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.font-bold {
+  font-weight: 600;
+}
+
+.mail-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 0;
+}
+</style>

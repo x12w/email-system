@@ -1,26 +1,18 @@
-import http from './http'
+import request from '@/utils/request'
+import type { LoginRequest, LoginResponse, RefreshRequest, UserInfo } from '@/types/auth'
 
-export interface LoginRequest {
-  username: string
-  password: string
+export function login(data: LoginRequest): Promise<LoginResponse> {
+  return request.post('/auth/login', data)
 }
 
-export interface LoginResponse {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
-  user: {
-    id: number
-    username: string
-    displayName: string
-  }
+export function logout(): Promise<void> {
+  return request.post('/auth/logout')
 }
 
-export function login(data: LoginRequest) {
-  return http.post<unknown, LoginResponse>('/auth/login', data)
+export function refreshToken(data: RefreshRequest): Promise<LoginResponse> {
+  return request.post('/auth/refresh', data)
 }
 
-export function getCurrentUser() {
-  return http.get<unknown, LoginResponse['user']>('/auth/me')
+export function getCurrentUser(): Promise<UserInfo> {
+  return request.get('/auth/me')
 }
-

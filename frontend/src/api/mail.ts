@@ -1,177 +1,93 @@
-import http from './http'
+import request from '@/utils/request'
+import type {
+  MailItem,
+  MailListParams,
+  MailListResponse,
+  ProcessMailRequest,
+  ProcessMailResponse,
+  SendMailRequest,
+  MailAttachment,
+  MailAccount,
+  MailAccountRequest,
+} from '@/types/mail'
 
-export interface PageResult<T> {
-  records: T[]
-  page: number
-  size: number
-  total: number
+// ---------- messages ----------
+
+export function getMailList(params: MailListParams): Promise<MailListResponse> {
+  return request.get('/messages', { params })
 }
 
-export interface MailAccount {
-  id: number
-  emailAddress: string
-  displayName: string
-  smtpHost: string
-  smtpPort: number
-  smtpSsl: boolean
-  imapHost: string
-  imapPort: number
-  imapSsl: boolean
-  authUsername: string
-  status: number
+export function getMailDetail(id: number): Promise<MailItem> {
+  return request.get(`/messages/${id}`)
 }
 
-export interface Folder {
-  id: number
-  accountId: number
-  name: string
-  remoteName: string
-  type: string
-  unreadCount: number
-  totalCount: number
+export function sendMail(data: SendMailRequest): Promise<MailItem> {
+  return request.post('/messages/send', data)
 }
 
-export interface MessageSummary {
-  id: number
-  accountId: number
-  folderId: number
-  fromAddress: string
-  fromName: string
-  subject: string
-  preview: string
-  receivedAt: string
-  read: boolean
-  starred: boolean
-  draft: boolean
-  attachmentCount: number
-  spamLabel: string
-  priorityLabel: string
-  riskLevel: string
+/**
+ * 保存草稿（新建草稿）。
+ */
+export function saveDraft(data: SendMailRequest): Promise<MailItem> {
+  return request.post('/messages/drafts', data)
 }
 
-export interface MessageDetail extends MessageSummary {
-  to: string[]
-  cc: string[]
-  bcc: string[]
-  contentType: string
-  content: string
-  sentAt: string
+export function markAsRead(id: number): Promise<MailItem> {
+  return request.put(`/messages/${id}/read`, { read: true })
 }
 
-export interface SendMessageRequest {
-  accountId: number
-  to: string[]
-  cc: string[]
-  bcc: string[]
-  subject: string
-  contentType: string
-  content: string
-  attachmentIds: number[]
+export function markAsUnread(id: number): Promise<MailItem> {
+  return request.put(`/messages/${id}/read`, { read: false })
 }
 
-export interface IntelligenceResult {
-  messageId: number
-  spamLabel: string
-  spamScore: number
-  priorityLabel: string
-  priorityScore: number
-  riskLevel: string
-  riskScore: number
-  pluginName: string
-  pluginVersion: string
-  analyzedAt: string
-  threats: Array<{
-    type: string
-    value: string
-    riskLevel: string
-    reason: string
-  }>
+export function deleteMail(id: number): Promise<void> {
+  return request.delete(`/messages/${id}`)
 }
 
-export interface Contact {
-  id: number
-  name: string
-  emailAddress: string
-  phone: string
-  remark: string
+/**
+ * 接收并处理新邮件（触发 AI 拦截分析）。
+ * 对应 POST /api/messages/process
+ */
+export function processMail(data: ProcessMailRequest): Promise<ProcessMailResponse> {
+  return request.post('/messages/process', data)
 }
 
-export interface PushEvent {
-  id: number
-  messageId: number
-  eventType: string
-  title: string
-  content: string
-  priority: string
-  read: boolean
-  pushedAt: string
+// ---------- attachments ----------
+
+export function uploadAttachment(file: File): Promise<MailAttachment> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/attachments', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
 }
 
-export interface PluginStatus {
-  name: string
-  version: string
-  runtime: string
-  enabled: boolean
-  timeoutMs: number
-  status: string
+export function downloadAttachment(id: number): Promise<Blob> {
+  return request.get(`/attachments/${id}/download`, { responseType: 'blob' })
 }
 
-export function listAccounts() {
-  return http.get<unknown, MailAccount[]>('/mail-accounts')
+export function deleteAttachment(id: number): Promise<void> {
+  return request.delete(`/attachments/${id}`)
 }
 
-export function listFolders() {
-  return http.get<unknown, Folder[]>('/folders')
+// ---------- mail accounts ----------
+
+export function getMailAccounts(): Promise<MailAccount[]> {
+  return request.get('/mail-accounts')
 }
 
-export function listMessages(params: Record<string, unknown>) {
-  return http.get<unknown, PageResult<MessageSummary>>('/messages', { params })
+export function createMailAccount(data: MailAccountRequest): Promise<MailAccount> {
+  return request.post('/mail-accounts', data)
 }
 
-export function getMessage(id: number) {
-  return http.get<unknown, MessageDetail>(`/messages/${id}`)
+export function updateMailAccount(id: number, data: MailAccountRequest): Promise<MailAccount> {
+  return request.put(`/mail-accounts/${id}`, data)
 }
 
-export function sendMessage(data: SendMessageRequest) {
-  return http.post<unknown, MessageDetail>('/messages/send', data)
+export function deleteMailAccount(id: number): Promise<void> {
+  return request.delete(`/mail-accounts/${id}`)
 }
 
-export function saveDraft(data: SendMessageRequest) {
-  return http.post<unknown, MessageDetail>('/messages/drafts', data)
-}
-
-export function markMessageRead(id: number, read: boolean) {
-  return http.put<unknown, MessageDetail>(`/messages/${id}/read`, { read })
-}
-
-export function deleteMessage(id: number) {
-  return http.delete<unknown, void>(`/messages/${id}`)
-}
-
-export function analyzeMessage(id: number) {
-  return http.post<unknown, IntelligenceResult>(`/intelligence/messages/${id}/analyze`)
-}
-
-export function getIntelligenceResult(id: number) {
-  return http.get<unknown, IntelligenceResult>(`/intelligence/messages/${id}`)
-}
-
-export function listContacts(keyword = '') {
-  return http.get<unknown, Contact[]>('/contacts', { params: { keyword } })
-}
-
-export function createContact(data: Omit<Contact, 'id'>) {
-  return http.post<unknown, Contact>('/contacts', data)
-}
-
-export function listPushEvents() {
-  return http.get<unknown, PushEvent[]>('/intelligence/push-events')
-}
-
-export function markPushEventRead(id: number) {
-  return http.put<unknown, PushEvent>(`/intelligence/push-events/${id}/read`)
-}
-
-export function listPlugins() {
-  return http.get<unknown, PluginStatus[]>('/intelligence/plugins')
+export function testMailAccount(id: number): Promise<{ status: string; message: string }> {
+  return request.post(`/mail-accounts/${id}/test`)
 }

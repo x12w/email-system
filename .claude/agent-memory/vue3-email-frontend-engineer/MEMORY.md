@@ -1,0 +1,3 @@
+- [前端项目结构规范](frontend-project-structure.md) — 目录结构、分支规范、提交规范、合并要求
+- [前端开发规范](frontend-dev-rules.md) — 核心依赖、模块拆分、Axios 约定、代码风格、质量检查
+- [前后端接口契约](frontend-api-contract.md) — 全局规范、错误码、所有接口清单（认证/邮箱账号/文件夹/邮件/附件/联系人/AI智能分析）
