@@ -131,8 +131,10 @@ start_backend() {
       # 跳过注释和空行
       [[ "$key" =~ ^# ]] && continue
       [[ -z "$key" ]] && continue
-      # 去掉 value 中的行内注释和引号
-      value=$(echo "$value" | sed 's/#.*//' | tr -d '"'"'"')
+      # 去掉 value 中的行内注释
+      value="${value%%#*}"
+      value="${value//\"/}"
+      value="${value//\'/}"
       [ -n "${!key:-}" ] && env_opts+=("-D$key=${!key}")
     done < "$ENV_FILE"
   fi
