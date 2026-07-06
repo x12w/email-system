@@ -3,6 +3,10 @@ spring:
     name: email-system
   profiles:
     active: dev
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
 
 server:
   port: 8080
@@ -11,8 +15,15 @@ server:
 
 security:
   jwt:
-    secret: ${JWT_SECRET:replace-with-at-least-32-bytes-secret}
+    secret: ${JWT_SECRET:}
     expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
+
+app:
+  initial-admin:
+    password: ${INIT_ADMIN_PASSWORD:}
+  auth-rate-limit:
+    max-attempts: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:5}
+    window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
 
 storage:
   type: ${STORAGE_TYPE:local}
