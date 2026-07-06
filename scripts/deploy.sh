@@ -64,8 +64,12 @@ load_env() {
   if [ -f "$ENV_FILE" ]; then
     set -a; source "$ENV_FILE"; set +a
   else
-    warn ".env 文件不存在，使用默认值。运行 '$0 env' 创建。"
-    export JWT_SECRET="${JWT_SECRET:-dev-secret-key-for-local-testing}"
+    warn ".env 文件不存在，运行 '$0 env' 创建。"
+  fi
+  # JWT_SECRET 为空时自动生成临时密钥，仅当前会话有效
+  if [ -z "${JWT_SECRET:-}" ]; then
+    JWT_SECRET=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n' | tr -d '/+=' | head -c 32)
+    warn "JWT_SECRET 未设置，已自动生成临时密钥。运行 '$0 env' 创建永久 .env 文件。"
   fi
 }
 
