@@ -124,21 +124,18 @@ start_backend() {
     jar=$(ls -t "$BACKEND_DIR/target/"*.jar 2>/dev/null | head -1)
   fi
 
-  # 从 .env 读取配置传给 Java 进程
+  # 将 .env 中的全部变量转为 -D JVM 参数
   local env_opts=()
-  [ -n "${MYSQL_HOST:-}" ]      && env_opts+=("-DMYSQL_HOST=$MYSQL_HOST")
-  [ -n "${MYSQL_PORT:-}" ]      && env_opts+=("-DMYSQL_PORT=$MYSQL_PORT")
-  [ -n "${MYSQL_DATABASE:-}" ]  && env_opts+=("-DMYSQL_DATABASE=$MYSQL_DATABASE")
-  [ -n "${MYSQL_USER:-}" ]      && env_opts+=("-DMYSQL_USER=$MYSQL_USER")
-  [ -n "${MYSQL_PASSWORD:-}" ]  && env_opts+=("-DMYSQL_PASSWORD=$MYSQL_PASSWORD")
-  [ -n "${REDIS_HOST:-}" ]      && env_opts+=("-DREDIS_HOST=$REDIS_HOST")
-  [ -n "${REDIS_PORT:-}" ]      && env_opts+=("-DREDIS_PORT=$REDIS_PORT")
-  [ -n "${REDIS_PASSWORD:-}" ]  && env_opts+=("-DREDIS_PASSWORD=$REDIS_PASSWORD")
-  [ -n "${JWT_SECRET:-}" ]      && env_opts+=("-DJWT_SECRET=$JWT_SECRET")
-  [ -n "${JWT_EXPIRE_SECONDS:-}" ] && env_opts+=("-DJWT_EXPIRE_SECONDS=$JWT_EXPIRE_SECONDS")
-  [ -n "${STORAGE_TYPE:-}" ]    && env_opts+=("-DSTORAGE_TYPE=$STORAGE_TYPE")
-  [ -n "${MAIL_HOST:-}" ]       && env_opts+=("-DMAIL_HOST=$MAIL_HOST")
-  [ -n "${MAIL_PORT:-}" ]       && env_opts+=("-DMAIL_PORT=$MAIL_PORT")
+  if [ -f "$ENV_FILE" ]; then
+    while IFS='=' read -r key value; do
+      # 跳过注释和空行
+      [[ "$key" =~ ^# ]] && continue
+      [[ -z "$key" ]] && continue
+      # 去掉 value 中的行内注释和引号
+      value=$(echo "$value" | sed 's/#.*//' | tr -d '"'"'"')
+      [ -n "${!key:-}" ] && env_opts+=("-D$key=${!key}")
+    done < "$ENV_FILE"
+  fi
 
   info "启动后端: $jar"
   nohup java "${env_opts[@]}" -jar "$jar" \
