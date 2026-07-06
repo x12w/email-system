@@ -99,8 +99,14 @@ public class MailSyncService {
 
             Message[] messages = inbox.getMessages();
             for (Message msg : messages) {
-                if (msg.getReceivedDate() != null && msg.getReceivedDate().before(since)) {
-                    continue; // 跳过旧邮件
+                // 跳过旧邮件：用 SentDate 兜底 ReceivedDate 为 null 的情况
+                java.util.Date msgDate = msg.getReceivedDate() != null
+                    ? msg.getReceivedDate() : msg.getSentDate();
+                if (msgDate != null && msgDate.before(since)) {
+                    continue;
+                }
+                if (msgDate == null) {
+                    continue; // 无法判断时间的邮件跳过
                 }
                 String msgId = ((MimeMessage) msg).getMessageID();
                 if (msgId != null && mailMessageMapper.selectCount(
