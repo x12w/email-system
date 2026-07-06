@@ -22,6 +22,7 @@ usage() {
   echo "用法: $0 <命令>"
   echo ""
   echo "命令:"
+  echo "  check      检查依赖和配置"
   echo "  build      编译前后端"
   echo "  start      启动全部服务（生产模式）"
   echo "  stop       停止全部服务"
@@ -37,9 +38,26 @@ usage() {
 
 # ---- 环境检查 ----
 check_deps() {
-  for cmd in java mvn npm docker; do
-    command -v $cmd &>/dev/null || { err "缺少依赖: $cmd"; exit 1; }
+  local missing=()
+  for cmd in java mvn npm docker curl; do
+    command -v $cmd &>/dev/null || missing+=("$cmd")
   done
+  if [ ${#missing[@]} -gt 0 ]; then
+    err "缺少以下依赖: ${missing[*]}"
+    echo ""
+    echo "  安装指引:"
+    for dep in "${missing[@]}"; do
+      case $dep in
+        java)  echo "    java : dnf install java-17-openjdk 或 apt install openjdk-17-jdk" ;;
+        mvn)   echo "    mvn  : dnf install maven 或 apt install maven" ;;
+        npm)   echo "    npm  : dnf install nodejs 或 apt install nodejs npm" ;;
+        docker)echo "    docker: https://docs.docker.com/engine/install/" ;;
+        curl)  echo "    curl : dnf install curl 或 apt install curl" ;;
+      esac
+    done
+    exit 1
+  fi
+  ok "所有依赖已满足 (java, mvn, npm, docker, curl)"
 }
 
 load_env() {
@@ -261,7 +279,26 @@ dev() {
 }
 
 # ---- 入口 ----
+check() {
+  echo ""
+  echo -e "${BLUE}═══ 环境检查 ═══${NC}"
+  check_deps
+  echo ""
+  echo -e "${BLUE}═══ 配置文件 ═══${NC}"
+  if [ -f "$ENV_FILE" ]; then
+    ok ".env 存在"
+    load_env
+    [ -n "${JWT_SECRET:-}" ] && ok "JWT_SECRET 已设置" || warn "JWT_SECRET 未设置"
+  else
+    warn ".env 不存在，运行 '$0 env' 创建"
+  fi
+  echo ""
+  echo -e "${BLUE}═══ 磁盘空间 ═══${NC}"
+  df -h "$PROJECT_DIR" | tail -1
+}
+
 case "${1:-}" in
+  check)        check ;;
   build)        build ;;
   start)        start ;;
   stop)         stop ;;
