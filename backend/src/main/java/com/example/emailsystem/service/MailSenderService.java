@@ -86,6 +86,7 @@ public class MailSenderService {
         message.setCreatedAt(LocalDateTime.now());
         message.setUpdatedAt(LocalDateTime.now());
         mailMessageMapper.insert(message);
+        mailFolderService.updateCounts(message.getFolderId(), 0, 1); // total +1
 
         // 3. 保存收件人
         saveRecipients(message.getId(), "to", to);
@@ -118,6 +119,7 @@ public class MailSenderService {
         message.setCreatedAt(LocalDateTime.now());
         message.setUpdatedAt(LocalDateTime.now());
         mailMessageMapper.insert(message);
+        mailFolderService.updateCounts(message.getFolderId(), 0, 1); // total +1
 
         saveRecipients(message.getId(), "to", to);
         saveRecipients(message.getId(), "cc", cc);
