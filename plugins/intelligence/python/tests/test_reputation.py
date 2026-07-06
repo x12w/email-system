@@ -80,13 +80,20 @@ class TestCheckIpReputation:
 
 
 class TestCheckDomainAge:
-    """测试域名年龄检查（占位实现）。"""
+    """测试域名年龄检查。"""
 
-    def test_age_not_implemented(self):
+    def test_age_fallback_on_missing_whois(self):
+        """whois 命令不可用时返回占位结果。"""
         result = check_domain_age("example.com")
         assert result["age_days"] == -1
         assert result["is_new"] is False
-        assert "未实现" in result["details"]
+        # whois 命令不可用或查询失败时返回 -1
+        assert result["details"] != ""
+
+    def test_age_empty_domain(self):
+        result = check_domain_age("")
+        assert result["age_days"] == -1
+        assert result["details"] == "未提供域名"
 
 
 # ============================================================
