@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "intelligence-plugin"
+version = "0.1.0"
+description = "邮件智能分析插件 — 关键词检测、发件人伪造、钓鱼识别、声誉检查"
+requires-python = ">=3.11"
+dependencies = [
+    "dnspython>=2.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["src.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+    "online: 需要网络连接的集成测试，运行 pytest -m 'not online' 跳过",
+    "dns: 需要 DNS 查询能力的测试",
+]

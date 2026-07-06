@@ -34,3 +34,9 @@ data/uploads/*
 *.tmp
 *.pid
 
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+

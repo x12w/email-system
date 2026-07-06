@@ -13,6 +13,7 @@ security:
   jwt:
     secret: ${JWT_SECRET:replace-with-at-least-32-bytes-secret}
     expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
+  mail-password-secret: ${MAIL_PASSWORD_SECRET:change-me-to-a-16-byte-key}
 
 storage:
   type: ${STORAGE_TYPE:local}
@@ -28,3 +29,12 @@ mail:
   host: ${MAIL_HOST:localhost}
   port: ${MAIL_PORT:1025}
 
+intelligence:
+  plugin:
+    enabled: ${INTELLIGENCE_PLUGIN_ENABLED:true}
+    name: ${INTELLIGENCE_PLUGIN_NAME:python-mail-intelligence}
+    version: ${INTELLIGENCE_PLUGIN_VERSION:0.1.0}
+    artifact-path: ${INTELLIGENCE_PLUGIN_ARTIFACT_PATH:./plugins/intelligence/native/linux/libmail_intelligence.so}
+    timeout-ms: ${INTELLIGENCE_PLUGIN_TIMEOUT_MS:10000}
+    python-command: ${INTELLIGENCE_PLUGIN_PYTHON:python3}
+    entry: ${INTELLIGENCE_PLUGIN_ENTRY:plugins/intelligence/python/src/plugin_entry.py}

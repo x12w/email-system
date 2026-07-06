@@ -27,6 +27,7 @@ backend/
     service/        业务接口
     service/impl/   业务实现
     mail/           收信、发信、解析、同步相关逻辑
+    intelligence/   智能邮件管理：分类、风险检测、插件编排、推送触发
     storage/        本地文件系统和 MinIO 适配
     job/            定时任务，例如邮件同步、清理任务
   src/main/resources/
@@ -37,10 +38,35 @@ deploy/
   nginx/            前端静态资源代理和后端 API 反向代理配置
   minio/            MinIO 初始化或桶策略配置
 
+plugins/
+  intelligence/
+    python/         Python 智能分析插件源码、模型、测试
+    native/         Python 打包后的 dll/so/dylib 插件产物
+
 docs/               开发文档、接口约定、数据库设计
 scripts/            本地开发、部署辅助脚本
 data/               Docker Compose 本地数据挂载目录
 ```
+
+## 智能邮件管理模块职责
+
+后端 Java 模块 `backend/src/main/java/com/example/emailsystem/intelligence/` 只负责业务编排，不直接写模型逻辑：
+
+| 子目录 | 职责 |
+| --- | --- |
+| `dto/` | 邮件分析请求、分析结果、风险项、推送事件 DTO |
+| `plugin/` | dll/so 插件加载、版本校验、超时控制、熔断降级 |
+| `service/` | 分析任务编排、结果入库、标签更新、推送触发 |
+
+Python 插件模块 `plugins/intelligence/python/` 负责真正的智能判断：
+
+| 子目录 | 职责 |
+| --- | --- |
+| `src/` | 垃圾邮件识别、高优先级识别、恶意链接检测、特征提取 |
+| `models/` | 本地模型、规则词典、域名信誉库等资源 |
+| `tests/` | 插件单元测试、样本回归测试 |
+
+`plugins/intelligence/native/` 只放打包产物，例如 Windows 的 `.dll`、Linux 的 `.so`、macOS 的 `.dylib`。源码和产物分离，避免 Java 后端直接依赖 Python 工程内部路径。
 
 ## 分支规范
 
@@ -72,6 +98,7 @@ git checkout -b feature/auth-login
 ```text
 feat(auth): add jwt login api
 fix(mail): handle attachment filename decode
+feat(intelligence): add spam and threat analysis plugin
 docs(db): add initial schema
 chore(docker): add compose services
 ```
@@ -83,4 +110,4 @@ chore(docker): add compose services
 3. PR 描述需要包含变更范围、测试方式、数据库变更、配置变更。
 4. 涉及接口变更时，同步更新 `docs/03-frontend-backend-contract.md`。
 5. 涉及表结构变更时，同步更新 `docs/04-database-schema.md` 和迁移脚本。
-
+6. 涉及智能插件 ABI 变更时，同步更新 `docs/07-intelligent-mail-management.md`，并保留兼容版本。
