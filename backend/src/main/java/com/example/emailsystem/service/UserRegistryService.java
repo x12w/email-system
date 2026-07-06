@@ -60,10 +60,11 @@ public class UserRegistryService {
 
         log.info("用户已注册: {} (id={})", username, user.getId());
 
-        if (mailAccountService.emailAddressExists(emailAddress)) {
-            // Email already linked, skip auto-creating mailbox
-        } else {
+        // Try to create a default mailbox; skip if email already used by this user
+        try {
             mailAccountService.createDefaultMailbox(user.getId(), emailAddress, request.displayName());
+        } catch (BusinessException ignored) {
+            // Mailbox already exists for this user
         }
         return new AuthUser(user.getId(), user.getUsername(), user.getDisplayName());
     }
