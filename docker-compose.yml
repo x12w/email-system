@@ -88,7 +88,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to a secure random string (>= 32 chars)}
+      JWT_SECRET: ${JWT_SECRET:-}
       JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-7200}
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-}
       STORAGE_TYPE: ${STORAGE_TYPE:-minio}
