@@ -11,11 +11,13 @@ import com.example.emailsystem.mapper.MailMessageMapper;
 import com.example.emailsystem.mapper.MailRecipientMapper;
 import com.example.emailsystem.service.ImapSyncService;
 import com.example.emailsystem.util.AesEncryptUtil;
+import com.example.emailsystem.event.MailMessageSyncedEvent;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.internet.MimeUtility;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,17 +34,20 @@ public class ImapSyncServiceImpl implements ImapSyncService {
     private final MailMessageMapper messageMapper;
     private final MailRecipientMapper recipientMapper;
     private final AesEncryptUtil encryptUtil;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ImapSyncServiceImpl(MailAccountMapper accountMapper,
                                MailFolderMapper folderMapper,
                                MailMessageMapper messageMapper,
                                MailRecipientMapper recipientMapper,
-                               AesEncryptUtil encryptUtil) {
+                               AesEncryptUtil encryptUtil,
+                               ApplicationEventPublisher eventPublisher) {
         this.accountMapper = accountMapper;
         this.folderMapper = folderMapper;
         this.messageMapper = messageMapper;
         this.recipientMapper = recipientMapper;
         this.encryptUtil = encryptUtil;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -130,6 +135,7 @@ public class ImapSyncServiceImpl implements ImapSyncService {
                         entity.setMessageId(mime.getMessageID());
                         entity.setSubject(mime.getSubject());
                         entity.setFromAddress(formatAddress(mime.getFrom()));
+                        entity.setFromName(formatDisplayName(mime.getFrom()));
                         entity.setContentType("html");
 
                         Object content = mime.getContent();
@@ -168,6 +174,13 @@ public class ImapSyncServiceImpl implements ImapSyncService {
                         }
 
                         messageMapper.insert(entity);
+
+                        // Trigger intelligence analysis asynchronously
+                        try {
+                            eventPublisher.publishEvent(new MailMessageSyncedEvent(entity.getId(), userId));
+                        } catch (Exception ignored) {
+                            // Analysis failure must not block sync
+                        }
 
                         // Save TO recipients
                         Address[] toAddr = mime.getRecipients(Message.RecipientType.TO);
@@ -219,6 +232,14 @@ public class ImapSyncServiceImpl implements ImapSyncService {
             return ia.getAddress();
         }
         return addresses[0].toString();
+    }
+
+    private String formatDisplayName(Address[] addresses) {
+        if (addresses == null || addresses.length == 0) return "";
+        if (addresses[0] instanceof InternetAddress ia) {
+            return ia.getPersonal() != null ? ia.getPersonal() : "";
+        }
+        return "";
     }
 
     private String extractText(MimeMultipart mp) {

@@ -35,6 +35,6 @@ intelligence:
     name: ${INTELLIGENCE_PLUGIN_NAME:python-mail-intelligence}
     version: ${INTELLIGENCE_PLUGIN_VERSION:0.1.0}
     artifact-path: ${INTELLIGENCE_PLUGIN_ARTIFACT_PATH:./plugins/intelligence/native/linux/libmail_intelligence.so}
-    timeout-ms: ${INTELLIGENCE_PLUGIN_TIMEOUT_MS:2000}
+    timeout-ms: ${INTELLIGENCE_PLUGIN_TIMEOUT_MS:10000}
     python-command: ${INTELLIGENCE_PLUGIN_PYTHON:python3}
     entry: ${INTELLIGENCE_PLUGIN_ENTRY:plugins/intelligence/python/src/plugin_entry.py}

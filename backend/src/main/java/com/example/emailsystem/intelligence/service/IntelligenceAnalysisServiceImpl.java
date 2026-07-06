@@ -2,6 +2,7 @@ package com.example.emailsystem.intelligence.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.emailsystem.entity.*;
+import com.example.emailsystem.event.MailMessageSyncedEvent;
 import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.dto.ThreatIndicator;
 import com.example.emailsystem.intelligence.plugin.IntelligencePluginClient;
@@ -10,8 +11,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -104,9 +107,9 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
             entity.setPriorityScore(bigDecimalOrZero(getNested(result, "priority", "score")));
             entity.setRiskLevel((String) getNested(result, "risk", "level"));
             entity.setRiskScore(bigDecimalOrZero(getNested(result, "risk", "score")));
-            entity.setPluginName((String) result.getOrDefault("pluginVersion", "unknown"));
+            entity.setPluginName("python-mail-intelligence");
             entity.setPluginVersion((String) result.getOrDefault("pluginVersion", "0.1.0"));
-            entity.setStatus(1);
+            entity.setStatus("success");
             entity.setAnalyzedAt(java.time.LocalDateTime.now());
 
             try {
@@ -197,7 +200,7 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
             entity.setPriorityScore(BigDecimal.ZERO);
             entity.setRiskLevel("none");
             entity.setRiskScore(BigDecimal.ZERO);
-            entity.setStatus(0);
+            entity.setStatus("failed");
             entity.setErrorMessage(e.getMessage());
             entity.setAnalyzedAt(java.time.LocalDateTime.now());
             resultMapper.insert(entity);
@@ -209,6 +212,17 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
                     "unknown", "0.0.0",
                     OffsetDateTime.now(), List.of()
             );
+        }
+    }
+
+    @Async
+    @TransactionalEventListener
+    public void onMessageSynced(MailMessageSyncedEvent event) {
+        try {
+            log.info("Auto-analyzing message {} after IMAP sync", event.getMessageId());
+            analyzeMessage(event.getMessageId());
+        } catch (Exception e) {
+            log.error("Auto-analysis failed for message {}: {}", event.getMessageId(), e.getMessage());
         }
     }
 

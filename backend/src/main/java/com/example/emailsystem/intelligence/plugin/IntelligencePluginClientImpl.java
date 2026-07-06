@@ -27,7 +27,7 @@ public class IntelligencePluginClientImpl implements IntelligencePluginClient {
             @Value("${intelligence.plugin.enabled:true}") boolean enabled,
             @Value("${intelligence.plugin.python-command:python3}") String pythonCommand,
             @Value("${intelligence.plugin.entry:plugins/intelligence/python/src/plugin_entry.py}") String pluginEntry,
-            @Value("${intelligence.plugin.timeout-ms:2000}") long timeoutMs,
+            @Value("${intelligence.plugin.timeout-ms:10000}") long timeoutMs,
             ObjectMapper objectMapper) {
         this.enabled = enabled;
         this.pythonCommand = pythonCommand;

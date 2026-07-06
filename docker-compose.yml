@@ -64,7 +64,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: email-system-backend
     environment:
       SPRING_PROFILES_ACTIVE: prod
