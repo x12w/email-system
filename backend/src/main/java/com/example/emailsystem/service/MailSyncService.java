@@ -91,23 +91,16 @@ public class MailSyncService {
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
 
-            // 首次同步最近 7 天；后续同步拉最近 1 天（避免遗漏）
-            var cal = java.util.Calendar.getInstance();
-            int lookbackDays = account.getLastSyncAt() != null ? 1 : 7;
-            cal.add(java.util.Calendar.DAY_OF_MONTH, -lookbackDays);
-            java.util.Date since = cal.getTime();
+            // 首次同步拉最近 50 封，后续只拉新邮件
+            int fetchLimit = account.getLastSyncAt() != null ? 20 : 50;
 
-            Message[] messages = inbox.getMessages();
-            for (Message msg : messages) {
-                // 跳过旧邮件：用 SentDate 兜底 ReceivedDate 为 null 的情况
-                java.util.Date msgDate = msg.getReceivedDate() != null
-                    ? msg.getReceivedDate() : msg.getSentDate();
-                if (msgDate != null && msgDate.before(since)) {
-                    continue;
-                }
-                if (msgDate == null) {
-                    continue; // 无法判断时间的邮件跳过
-                }
+            Message[] allMessages = inbox.getMessages();
+            int total = allMessages.length;
+            int start = Math.max(0, total - fetchLimit);
+            log.info("IMAP 同步: 文件夹共 {} 封，拉取最近 {} 封 (start={})", total, fetchLimit, start);
+
+            for (int i = start; i < total; i++) {
+                Message msg = allMessages[i];
                 String msgId = ((MimeMessage) msg).getMessageID();
                 if (msgId != null && mailMessageMapper.selectCount(
                     new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
