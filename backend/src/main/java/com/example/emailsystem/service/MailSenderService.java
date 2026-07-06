@@ -144,9 +144,23 @@ public class MailSenderService {
         sender.setPort(account.getSmtpPort() != null ? account.getSmtpPort() : 25);
         sender.setUsername(account.getAuthUsername());
         sender.setPassword(account.getAuthPasswordEncrypted());
-        sender.getJavaMailProperties().put("mail.smtp.auth", "true");
-        sender.getJavaMailProperties().put("mail.smtp.starttls.enable",
-            account.getSmtpSsl() != null && account.getSmtpSsl() == 1 ? "true" : "false");
+
+        var props = sender.getJavaMailProperties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.connectiontimeout", "10000");
+
+        boolean ssl = account.getSmtpSsl() != null && account.getSmtpSsl() == 1;
+        if (ssl) {
+            // Port 465: SSL/TLS 直连
+            props.put("mail.smtp.ssl.enable", "true");
+            props.put("mail.smtp.socketFactory.port", String.valueOf(sender.getPort()));
+            props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        } else {
+            // Port 587 or 25: STARTTLS 升级
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "false");
+        }
         return sender;
     }
 
