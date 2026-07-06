@@ -158,12 +158,40 @@ start_backend() {
 }
 
 start_nginx() {
-  if grep -q "nginx:" "$PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
-    info "启动 Nginx..."
-    cd "$PROJECT_DIR"
-    docker compose --profile app up -d nginx 2>/dev/null || true
-    ok "Nginx 已就绪 → http://localhost"
+  # 已经有 nginx 在跑就跳过
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -q email-system-nginx && return 0
+
+  info "启动 Nginx..."
+  local dist_dir="$FRONTEND_DIR/dist"
+  if [ ! -d "$dist_dir" ]; then
+    warn "前端未构建，跳过 Nginx"
+    return 0
   fi
+
+  cat > /tmp/nginx-email.conf << NGINX_EOF
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 50m;
+    location / { try_files \\\$uri \\\$uri/ /index.html; }
+    location /api/ {
+        proxy_pass http://172.17.0.1:8080/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+    }
+}
+NGINX_EOF
+
+  docker rm -f email-system-nginx 2>/dev/null || true
+  docker run -d --name email-system-nginx --network host \
+    -v "$dist_dir:/usr/share/nginx/html:ro" \
+    -v /tmp/nginx-email.conf:/etc/nginx/conf.d/default.conf:ro \
+    nginx:1.27-alpine >/dev/null 2>&1
+  ok "Nginx 已就绪 → http://localhost"
 }
 
 start() {
@@ -182,8 +210,9 @@ stop() {
     kill "$(cat "$BACKEND_PID")" 2>/dev/null && ok "后端已停止" || true
     rm -f "$BACKEND_PID"
   fi
-  # 确保占 8080 端口的进程被干掉
   fuser -k 8080/tcp 2>/dev/null || true
+
+  docker rm -f email-system-nginx 2>/dev/null && ok "Nginx 已停止" || true
 
   cd "$PROJECT_DIR"
   docker compose --profile app down 2>/dev/null || true
