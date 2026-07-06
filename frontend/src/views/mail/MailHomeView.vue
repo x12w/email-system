@@ -620,9 +620,11 @@ async function addMailAccount() {
     }
     const account = await createAccount(accountRequest)
     accountDrawerVisible.value = false
+    ElMessage.success('邮箱账号已添加')
     await loadAll()
     await switchAccount(account.id)
-    ElMessage.success('邮箱账号已添加')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '添加失败')
   } finally {
     creatingAccount.value = false
   }
