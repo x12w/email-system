@@ -587,8 +587,10 @@ async function addMailAccount() {
     ElMessage.warning('请填写邮箱地址')
     return
   }
-  if (!accountForm.smtpHost || !accountForm.authUsername || !accountForm.authPassword) {
-    ElMessage.warning('请填写 SMTP 服务器和认证信息')
+  const hasSmtp = accountForm.smtpHost && accountForm.authUsername && accountForm.authPassword
+  const hasImap = accountForm.imapHost && accountForm.authUsername && accountForm.authPassword
+  if (!hasSmtp && !hasImap) {
+    ElMessage.warning('请至少填写 SMTP 或 IMAP 服务器和认证信息')
     return
   }
   creatingAccount.value = true
@@ -597,11 +599,11 @@ async function addMailAccount() {
     const accountRequest: MailAccountRequest = {
       emailAddress,
       displayName: accountForm.displayName || emailAddress,
-      smtpHost: accountForm.smtpHost,
-      smtpPort: accountForm.smtpPort,
+      smtpHost: accountForm.smtpHost || '',
+      smtpPort: accountForm.smtpPort || 587,
       smtpSsl: accountForm.smtpSsl,
-      imapHost: accountForm.imapHost || undefined as unknown as string,
-      imapPort: accountForm.imapPort || undefined as unknown as number,
+      imapHost: accountForm.imapHost || '',
+      imapPort: accountForm.imapPort || 993,
       imapSsl: accountForm.imapSsl,
       authUsername: accountForm.authUsername,
       authPassword: accountForm.authPassword

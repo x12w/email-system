@@ -23,13 +23,13 @@ export interface MailAccount {
 
 export interface MailAccountRequest {
   emailAddress: string
-  displayName: string
-  smtpHost: string
-  smtpPort: number
-  smtpSsl: boolean
-  imapHost: string
-  imapPort: number
-  imapSsl: boolean
+  displayName?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpSsl?: boolean
+  imapHost?: string
+  imapPort?: number
+  imapSsl?: boolean
   authUsername: string
   authPassword: string
 }
