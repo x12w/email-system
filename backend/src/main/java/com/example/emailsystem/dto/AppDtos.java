@@ -30,7 +30,7 @@ public final class AppDtos {
     public record MailAccountRequest(
         @NotBlank @Email String emailAddress,
         String displayName,
-        @NotBlank String smtpHost,
+        String smtpHost,
         int smtpPort,
         boolean smtpSsl,
         String imapHost,

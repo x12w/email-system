@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.emailsystem.common.BusinessException;
 import com.example.emailsystem.entity.MailFolder;
 import com.example.emailsystem.mapper.MailFolderMapper;
+import com.example.emailsystem.mapper.MailMessageMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -11,14 +12,31 @@ import org.springframework.stereotype.Service;
 @Service
 public class MailFolderService {
     private final MailFolderMapper mailFolderMapper;
+    private final MailMessageMapper mailMessageMapper;
 
-    public MailFolderService(MailFolderMapper mailFolderMapper) {
+    public MailFolderService(MailFolderMapper mailFolderMapper, MailMessageMapper mailMessageMapper) {
         this.mailFolderMapper = mailFolderMapper;
+        this.mailMessageMapper = mailMessageMapper;
     }
 
     public List<MailFolder> listFolders(Long userId) {
-        return mailFolderMapper.selectList(
+        List<MailFolder> folders = mailFolderMapper.selectList(
             new QueryWrapper<MailFolder>().eq("user_id", userId).orderByAsc("id"));
+        // 实时计算每个文件夹的邮件数量
+        for (MailFolder folder : folders) {
+            long total = mailMessageMapper.selectCount(
+                new QueryWrapper<com.example.emailsystem.entity.MailMessage>()
+                    .eq("folder_id", folder.getId())
+                    .eq("deleted_flag", 0));
+            long unread = mailMessageMapper.selectCount(
+                new QueryWrapper<com.example.emailsystem.entity.MailMessage>()
+                    .eq("folder_id", folder.getId())
+                    .eq("read_flag", 0)
+                    .eq("deleted_flag", 0));
+            folder.setTotalCount((int) total);
+            folder.setUnreadCount((int) unread);
+        }
+        return folders;
     }
 
     public List<MailFolder> listFoldersByAccount(Long accountId) {

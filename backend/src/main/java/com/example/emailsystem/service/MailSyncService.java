@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -30,15 +31,18 @@ public class MailSyncService {
     private final MailFolderService mailFolderService;
     private final MailMessageMapper mailMessageMapper;
     private final MailRecipientMapper mailRecipientMapper;
+    private final int maxFetchCount;
 
     public MailSyncService(MailAccountService mailAccountService,
                            MailFolderService mailFolderService,
                            MailMessageMapper mailMessageMapper,
-                           MailRecipientMapper mailRecipientMapper) {
+                           MailRecipientMapper mailRecipientMapper,
+                           @Value("${mail.imap.fetch-count:50}") int maxFetchCount) {
         this.mailAccountService = mailAccountService;
         this.mailFolderService = mailFolderService;
         this.mailMessageMapper = mailMessageMapper;
         this.mailRecipientMapper = mailRecipientMapper;
+        this.maxFetchCount = maxFetchCount;
     }
 
     /**
@@ -51,34 +55,39 @@ public class MailSyncService {
     }
 
     public void syncUserAccounts(Long userId) {
-        List<MailAccount> accounts = mailAccountService.listAccounts(userId);
-        for (MailAccount account : accounts) {
-            try {
-                syncInbox(account);
-            } catch (Exception e) {
-                log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
+        new Thread(() -> {
+            List<MailAccount> accounts = mailAccountService.listAccounts(userId);
+            for (MailAccount account : accounts) {
+                try {
+                    int count = syncInbox(account);
+                    if (count > 0) {
+                        log.info("IMAP 同步完成 account={}: {} 封新邮件", account.getEmailAddress(), count);
+                    }
+                } catch (Exception e) {
+                    log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
+                }
             }
-        }
+        }, "imap-sync-user-" + userId).start();
     }
 
     public int syncInbox(MailAccount account) {
-        if (account.getImapHost() == null || account.getImapPort() == null) {
+        if (account.getImapHost() == null || account.getImapHost().isBlank()
+            || account.getImapPort() == null) {
             return 0;
         }
         int count = 0;
         Properties props = new Properties();
-        props.put("mail.store.protocol", "imap");
-        props.put("mail.imap.host", account.getImapHost());
-        props.put("mail.imap.port", String.valueOf(account.getImapPort()));
-        props.put("mail.imap.ssl.enable",
-            account.getImapSsl() != null && account.getImapSsl() == 1 ? "true" : "false");
-        props.put("mail.imap.auth", "true");
+        props.put("mail.store.protocol", "imaps");
+        props.put("mail.imaps.host", account.getImapHost());
+        props.put("mail.imaps.port", String.valueOf(account.getImapPort()));
+        props.put("mail.imaps.auth", "true");
+        props.put("mail.imaps.timeout", "15000");
+        props.put("mail.imaps.connectiontimeout", "10000");
 
         try {
             Session session = Session.getInstance(props);
-            jakarta.mail.Store store = session.getStore("imap");
-            store.connect(account.getImapHost(), account.getImapPort(),
-                account.getAuthUsername(), account.getAuthPasswordEncrypted());
+            jakarta.mail.Store store = session.getStore("imaps");
+            store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
 
             Folder inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);
@@ -86,10 +95,21 @@ public class MailSyncService {
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
 
-            Message[] messages = inbox.getMessages();
-            for (Message msg : messages) {
-                if (msg.isSet(Flags.Flag.SEEN)) {
-                    continue; // 已读邮件跳过（已在之前同步过）
+            // 首次拉指定数量，后续只拉增量
+            int fetchLimit = account.getLastSyncAt() != null ? 20 : maxFetchCount;
+
+            Message[] allMessages = inbox.getMessages();
+            int total = allMessages.length;
+            int start = Math.max(0, total - fetchLimit);
+            log.info("IMAP 同步: 文件夹共 {} 封，拉取最近 {} 封 (start={})", total, fetchLimit, start);
+
+            for (int i = start; i < total; i++) {
+                Message msg = allMessages[i];
+                String msgId = ((MimeMessage) msg).getMessageID();
+                if (msgId != null && mailMessageMapper.selectCount(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
+                        .eq("message_id", msgId)) > 0) {
+                    continue;
                 }
                 MimeMessage mimeMsg = (MimeMessage) msg;
                 MailMessage mailMessage = new MailMessage();
@@ -98,6 +118,8 @@ public class MailSyncService {
                 mailMessage.setFolderId(inboxFolder.getId());
 
                 InternetAddress from = (InternetAddress) mimeMsg.getFrom()[0];
+                mailMessage.setMessageUid(msgId);
+                mailMessage.setMessageId(msgId);
                 mailMessage.setFromAddress(from.getAddress());
                 mailMessage.setFromName(from.getPersonal());
                 mailMessage.setSubject(mimeMsg.getSubject() == null ? "" : mimeMsg.getSubject());
@@ -105,7 +127,7 @@ public class MailSyncService {
                 mailMessage.setContent(extractContent(mimeMsg));
                 mailMessage.setPreview(extractPreview(mailMessage.getContent()));
                 mailMessage.setSentAt(toLocalDateTime(mimeMsg.getSentDate()));
-                mailMessage.setReceivedAt(LocalDateTime.now());
+                mailMessage.setReceivedAt(toLocalDateTime(mimeMsg.getReceivedDate()));
                 mailMessage.setReadFlag(0);
                 mailMessage.setStarFlag(0);
                 mailMessage.setDraftFlag(0);
@@ -128,6 +150,9 @@ public class MailSyncService {
             }
             inbox.close(false);
             store.close();
+
+            account.setLastSyncAt(LocalDateTime.now());
+            mailAccountService.updateLastSync(account);
 
             if (count > 0) {
                 mailFolderService.updateCounts(inboxFolder.getId(), count, count);

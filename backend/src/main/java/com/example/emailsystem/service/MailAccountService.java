@@ -43,16 +43,16 @@ public class MailAccountService {
         return account;
     }
 
-    public boolean emailAddressExists(String emailAddress) {
+    public boolean emailAddressExists(Long userId, String emailAddress) {
         String normalized = emailAddress == null ? "" : emailAddress.trim().toLowerCase();
         return mailAccountMapper.selectCount(
-            new QueryWrapper<MailAccount>().eq("email_address", normalized)) > 0;
+            new QueryWrapper<MailAccount>().eq("user_id", userId).eq("email_address", normalized)) > 0;
     }
 
     public MailAccount createAccount(Long userId, MailAccount account) {
         String normalizedEmail = account.getEmailAddress().trim().toLowerCase();
-        if (emailAddressExists(normalizedEmail)) {
-            throw new BusinessException("MAIL_400", "邮箱地址已被注册");
+        if (emailAddressExists(userId, normalizedEmail)) {
+            throw new BusinessException("MAIL_400", "邮箱地址已存在");
         }
         account.setUserId(userId);
         account.setEmailAddress(normalizedEmail);
@@ -82,6 +82,11 @@ public class MailAccountService {
         account.setUpdatedAt(LocalDateTime.now());
         mailAccountMapper.updateById(account);
         return account;
+    }
+
+    public void updateLastSync(MailAccount account) {
+        account.setUpdatedAt(LocalDateTime.now());
+        mailAccountMapper.updateById(account);
     }
 
     public void deleteAccount(Long userId, Long id) {

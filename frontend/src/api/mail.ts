@@ -23,13 +23,13 @@ export interface MailAccount {
 
 export interface MailAccountRequest {
   emailAddress: string
-  displayName: string
-  smtpHost: string
-  smtpPort: number
-  smtpSsl: boolean
-  imapHost: string
-  imapPort: number
-  imapSsl: boolean
+  displayName?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpSsl?: boolean
+  imapHost?: string
+  imapPort?: number
+  imapSsl?: boolean
   authUsername: string
   authPassword: string
 }
@@ -135,6 +135,10 @@ export function listAccounts() {
 
 export function createAccount(data: MailAccountRequest) {
   return http.post<unknown, MailAccount>('/mail-accounts', data)
+}
+
+export function deleteAccount(id: number) {
+  return http.delete<unknown, void>(`/mail-accounts/${id}`)
 }
 
 export function listFolders() {

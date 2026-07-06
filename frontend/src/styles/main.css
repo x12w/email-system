@@ -181,126 +181,146 @@ button {
 
 .mail-shell {
   display: grid;
-  grid-template-rows: auto 1fr;
-  grid-template-columns: 252px minmax(430px, 0.94fr) minmax(460px, 1.06fr);
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: 220px 1fr;
   min-height: 100%;
-  background: #edf1f5;
+  background:
+    radial-gradient(circle at 48% 0, var(--accent-soft), transparent 360px),
+    var(--app-bg);
 }
 
 .app-topbar {
-  display: block;
   grid-column: 1 / -1;
-  margin: 12px 14px 0;
-  padding: 10px 14px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: var(--shadow-soft);
-}
-
-.topbar-actions {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
-  gap: 10px;
+  display: flex;
   align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
-.topbar-search {
-  width: 100%;
+.topbar-left { flex-shrink: 0; }
+.topbar-brand { font-size: 16px; margin: 0; white-space: nowrap; }
+
+.topbar-center {
+  flex: 1;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
-.collapse-menu-button {
-  box-shadow: var(--shadow-soft);
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.account-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.current-account {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-menu {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  max-width: 100%;
 }
 
 .account-menu header {
-  display: grid;
-  gap: 2px;
-  padding-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--border-soft);
 }
 
-.account-menu header span,
-.menu-account-item small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.account-menu header strong {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.account-menu-list {
+.account-list {
   display: grid;
-  gap: 6px;
-  max-height: 260px;
-  overflow: auto;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .menu-account-item {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  padding: 10px;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.menu-account-item:hover,
-.menu-account-item.active {
-  border-color: var(--accent);
+  border-radius: 6px;
 }
 
 .menu-account-item.active {
   background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
-.menu-account-item span {
+.menu-account-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.menu-account-info strong {
+  display: block;
   overflow: hidden;
   color: var(--text);
   font-size: 13px;
-  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.account-menu-actions {
+.menu-account-info small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-account-remove {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.menu-account-item:hover .menu-account-remove {
+  opacity: 1;
+}
+
+.menu-section {
   display: grid;
-  gap: 8px;
-  padding-top: 10px;
+  gap: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
 
-.account-menu-actions .el-button {
+.menu-section .el-button {
   justify-content: flex-start;
-  width: 100%;
   margin-left: 0;
 }
 
-.mail-sidebar,
-.mail-list-pane,
-.mail-detail-pane {
-  min-width: 0;
-  min-height: calc(100vh - 104px);
+.mail-sidebar {
+  padding: 14px 12px;
+  background: linear-gradient(180deg, var(--sidebar-bg), var(--surface-soft));
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
 }
 
-.mail-sidebar {
-  padding: 18px 14px;
-  background: #f9fbfd;
-  border-right: 1px solid #d6dee8;
+.mail-main {
+  overflow-y: auto;
+  padding: 20px 28px;
 }
 
 .brand-row {
@@ -414,6 +434,21 @@ button {
   box-shadow: 0 0 0 1px var(--accent), var(--shadow-soft);
 }
 
+.account-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-delete-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.account-switcher:hover .account-delete-btn {
+  opacity: 1;
+}
+
 .account-row span,
 .plugin-row span {
   overflow: hidden;
@@ -433,11 +468,6 @@ button {
 .plugin-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-}
-
-.mail-list-pane {
-  padding: 18px;
-  border-right: 1px solid #d6dee8;
 }
 
 .workspace-header {
@@ -499,7 +529,8 @@ button {
 
 .message-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .message-row {
@@ -582,17 +613,13 @@ button {
   white-space: nowrap;
 }
 
-.mail-detail-pane {
-  padding: 22px 30px;
-  background: #ffffff;
-}
-
 .detail-header {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #dde5ef;
+  border-bottom: 1px solid var(--border-soft);
   padding-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .detail-header h2 {
@@ -691,14 +718,6 @@ button {
 .drawer-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-}
-
-.utility-rail {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  display: grid;
   gap: 10px;
 }
 
@@ -823,30 +842,13 @@ button {
   --el-mask-color: rgba(0, 0, 0, 0.58);
 }
 
-.mail-shell {
-  background:
-    radial-gradient(circle at 48% 0, var(--accent-soft), transparent 360px),
-    var(--app-bg);
-}
-
 .mail-sidebar {
   background: linear-gradient(180deg, var(--sidebar-bg), var(--surface-soft));
   border-color: var(--border);
 }
 
-.mail-list-pane {
-  border-color: var(--border);
-}
-
-.mail-detail-pane {
-  background: var(--surface);
-  box-shadow: var(--shadow-panel);
-}
-
-.brand-row h1,
 .workspace-header h2,
 .detail-header h2,
-.detail-empty h2,
 .summary-strip strong,
 .message-sender {
   color: var(--text);
