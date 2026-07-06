@@ -835,30 +835,13 @@ button {
   --el-mask-color: rgba(0, 0, 0, 0.58);
 }
 
-.mail-shell {
-  background:
-    radial-gradient(circle at 48% 0, var(--accent-soft), transparent 360px),
-    var(--app-bg);
-}
-
 .mail-sidebar {
   background: linear-gradient(180deg, var(--sidebar-bg), var(--surface-soft));
   border-color: var(--border);
 }
 
-.mail-list-pane {
-  border-color: var(--border);
-}
-
-.mail-detail-pane {
-  background: var(--surface);
-  box-shadow: var(--shadow-panel);
-}
-
-.brand-row h1,
 .workspace-header h2,
 .detail-header h2,
-.detail-empty h2,
 .summary-strip strong,
 .message-sender {
   color: var(--text);
