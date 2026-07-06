@@ -267,7 +267,7 @@ init_env() {
 
   # 生成随机 JWT secret
   local secret=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')
-  sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$secret/" "$ENV_FILE"
+  sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$secret|" "$ENV_FILE"
 
   ok ".env 已创建: $ENV_FILE"
   warn "请编辑 .env 填入你的配置: JWT_SECRET 已自动生成，还需设置 INIT_ADMIN_PASSWORD 等"
