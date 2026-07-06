@@ -93,8 +93,12 @@ public class MailSyncService {
 
             Message[] messages = inbox.getMessages();
             for (Message msg : messages) {
-                if (msg.isSet(Flags.Flag.SEEN)) {
-                    continue; // 已读邮件跳过（已在之前同步过）
+                // 用 messageId 去重，而非依赖 SEEN 标记（Gmail 可能自动标记为已读）
+                String msgId = ((MimeMessage) msg).getMessageID();
+                if (msgId != null && mailMessageMapper.selectCount(
+                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
+                        .eq("message_id", msgId)) > 0) {
+                    continue;
                 }
                 MimeMessage mimeMsg = (MimeMessage) msg;
                 MailMessage mailMessage = new MailMessage();
@@ -103,6 +107,8 @@ public class MailSyncService {
                 mailMessage.setFolderId(inboxFolder.getId());
 
                 InternetAddress from = (InternetAddress) mimeMsg.getFrom()[0];
+                mailMessage.setMessageUid(msgId);
+                mailMessage.setMessageId(msgId);
                 mailMessage.setFromAddress(from.getAddress());
                 mailMessage.setFromName(from.getPersonal());
                 mailMessage.setSubject(mimeMsg.getSubject() == null ? "" : mimeMsg.getSubject());
