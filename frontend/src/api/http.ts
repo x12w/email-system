@@ -36,6 +36,14 @@ http.interceptors.response.use(
         await router.push('/login')
       }
     }
+    // 从 API 响应体中提取错误消息，避免显示 axios 原始错误
+    const apiMessage = error.response?.data?.message
+    if (apiMessage) {
+      return Promise.reject(new Error(apiMessage))
+    }
+    if (error.response?.status) {
+      return Promise.reject(new Error(`请求失败 (${error.response.status})`))
+    }
     return Promise.reject(error)
   }
 )

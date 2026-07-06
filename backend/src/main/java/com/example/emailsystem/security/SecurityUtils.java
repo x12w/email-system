@@ -1,5 +1,6 @@
 package com.example.emailsystem.security;
 
+import com.example.emailsystem.common.BusinessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -12,6 +13,6 @@ public final class SecurityUtils {
         if (authentication != null && authentication.getPrincipal() instanceof AuthUser user) {
             return user;
         }
-        return new AuthUser(1L, "admin", "Admin");
+        throw new BusinessException("AUTH_401", "未登录或登录已过期");
     }
 }

@@ -1,10 +1,6 @@
 <template>
   <main class="mail-shell">
     <header class="app-topbar">
-      <div class="topbar-title">
-        <span>智能邮件管理平台</span>
-        <h1>{{ selectedFolderName }}</h1>
-      </div>
       <div class="topbar-actions">
         <el-input
           v-model="filters.keyword"
@@ -15,35 +11,45 @@
           @keyup.enter="loadMessages"
           @clear="loadMessages"
         />
-        <el-tooltip content="同步邮件和状态" placement="bottom">
-          <el-button :icon="Refresh" circle @click="loadAll" />
-        </el-tooltip>
-        <button class="theme-switch" type="button" :aria-pressed="isDarkMode" @click="toggleTheme">
-          <span :class="{ active: !isDarkMode }">
-            <el-icon><Sunny /></el-icon>
-            浅色
-          </span>
-          <span :class="{ active: isDarkMode }">
-            <el-icon><Moon /></el-icon>
-            深色
-          </span>
-        </button>
+        <el-popover placement="bottom-end" width="300" trigger="click" popper-class="account-menu-popover">
+          <template #reference>
+            <el-button class="collapse-menu-button" :icon="Fold" circle aria-label="账号菜单" />
+          </template>
+          <section class="account-menu">
+            <header>
+              <span>当前邮箱</span>
+              <strong>{{ activeAccount?.emailAddress || '未选择' }}</strong>
+            </header>
+            <div class="account-menu-list">
+              <button
+                v-for="account in accounts"
+                :key="account.id"
+                class="menu-account-item"
+                :class="{ active: account.id === activeAccountId }"
+                @click="switchAccount(account.id)"
+              >
+                <span>{{ account.displayName || account.emailAddress }}</span>
+                <small>{{ account.emailAddress }}</small>
+              </button>
+            </div>
+            <div class="account-menu-actions">
+              <el-button :icon="Refresh" @click="loadAll">同步邮件</el-button>
+              <el-button :icon="isDarkMode ? Sunny : Moon" @click="toggleTheme">
+                {{ isDarkMode ? '切换浅色模式' : '切换暗黑模式' }}
+              </el-button>
+              <el-button :icon="Plus" @click="openAccountDrawer">添加邮箱账号</el-button>
+              <el-button :icon="SwitchButton" @click="logout">退出并切换登录账号</el-button>
+            </div>
+          </section>
+        </el-popover>
       </div>
     </header>
 
     <aside class="mail-sidebar">
       <div class="brand-row">
         <div>
-          <h1>邮件系统</h1>
-          <span>{{ authStore.user?.displayName || 'Admin' }}</span>
-        </div>
-        <div class="brand-actions">
-          <el-tooltip :content="isDarkMode ? '切换浅色模式' : '切换黑暗模式'" placement="right">
-            <el-button :icon="isDarkMode ? Sunny : Moon" circle text @click="toggleTheme" />
-          </el-tooltip>
-          <el-tooltip content="退出登录" placement="right">
-            <el-button :icon="SwitchButton" circle text @click="logout" />
-          </el-tooltip>
+          <h1>{{ activeAccount?.emailAddress || '邮箱' }}</h1>
+          <span>{{ selectedFolderName }}</span>
         </div>
       </div>
 
@@ -51,7 +57,7 @@
 
       <nav class="folder-nav">
         <button
-          v-for="folder in folders"
+          v-for="folder in visibleFolders"
           :key="folder.id"
           class="folder-item"
           :class="{ active: folder.id === activeFolderId }"
@@ -66,10 +72,16 @@
 
       <section class="sidebar-section">
         <h2>邮箱账号</h2>
-        <div v-for="account in accounts" :key="account.id" class="account-row">
+        <button
+          v-for="account in accounts"
+          :key="account.id"
+          class="account-row account-switcher"
+          :class="{ active: account.id === activeAccountId }"
+          @click="switchAccount(account.id)"
+        >
           <span>{{ account.displayName || account.emailAddress }}</span>
           <small>{{ account.emailAddress }}</small>
-        </div>
+        </button>
       </section>
 
       <section class="sidebar-section">
@@ -84,8 +96,8 @@
     <section class="mail-list-pane">
       <header class="workspace-header">
         <div>
-          <span class="section-kicker">{{ selectedFolderName }}</span>
-          <h2>邮件工作台</h2>
+          <span class="section-kicker">{{ activeAccount?.emailAddress || '未选择邮箱' }}</span>
+          <h2>{{ selectedFolderName }}</h2>
         </div>
         <div class="summary-strip">
           <div>
@@ -264,6 +276,21 @@
     </el-form>
   </el-drawer>
 
+  <el-drawer v-model="accountDrawerVisible" title="添加邮箱账号" size="440px">
+    <el-form label-position="top">
+      <el-form-item label="邮箱地址">
+        <el-input v-model="accountForm.emailAddress" placeholder="name@example.com" />
+      </el-form-item>
+      <el-form-item label="显示名称">
+        <el-input v-model="accountForm.displayName" placeholder="工作邮箱" />
+      </el-form-item>
+      <div class="drawer-actions">
+        <el-button @click="accountDrawerVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creatingAccount" @click="addMailAccount">添加账号</el-button>
+      </div>
+    </el-form>
+  </el-drawer>
+
   <aside class="utility-rail">
     <el-popover placement="left" width="380" trigger="click" @show="loadContacts">
       <template #reference>
@@ -304,6 +331,7 @@ import {
   Delete,
   Document,
   EditPen,
+  Fold,
   Folder,
   Message,
   Moon,
@@ -321,6 +349,7 @@ import { useRouter } from 'vue-router'
 
 import {
   analyzeMessage,
+  createAccount,
   createContact,
   deleteMessage,
   getIntelligenceResult,
@@ -339,6 +368,7 @@ import {
   type Folder as MailFolder,
   type IntelligenceResult,
   type MailAccount,
+  type MailAccountRequest,
   type MessageDetail,
   type MessageSummary,
   type PluginStatus,
@@ -359,10 +389,13 @@ const contacts = ref<Contact[]>([])
 const pushEvents = ref<PushEvent[]>([])
 const plugins = ref<PluginStatus[]>([])
 const activeFolderId = ref<number>()
+const activeAccountId = ref<number>()
 const loading = ref(false)
 const analyzing = ref(false)
 const isDarkMode = ref(document.documentElement.dataset.theme === 'dark')
 const composeVisible = ref(false)
+const accountDrawerVisible = ref(false)
+const creatingAccount = ref(false)
 const composeTo = ref('')
 const contactKeyword = ref('')
 
@@ -391,7 +424,14 @@ const contactForm = reactive({
   remark: ''
 })
 
-const selectedFolderName = computed(() => folders.value.find((folder) => folder.id === activeFolderId.value)?.name || '全部邮件')
+const accountForm = reactive({
+  emailAddress: '',
+  displayName: ''
+})
+
+const activeAccount = computed(() => accounts.value.find((account) => account.id === activeAccountId.value))
+const visibleFolders = computed(() => folders.value.filter((folder) => folder.accountId === activeAccountId.value))
+const selectedFolderName = computed(() => visibleFolders.value.find((folder) => folder.id === activeFolderId.value)?.name || '全部邮件')
 const unreadCount = computed(() => messages.value.filter((message) => !message.read).length)
 const highRiskCount = computed(() => messages.value.filter((message) => ['medium', 'high', 'critical'].includes(message.riskLevel)).length)
 const unreadPushCount = computed(() => pushEvents.value.filter((event) => !event.read).length)
@@ -411,8 +451,11 @@ async function loadAll() {
     folders.value = folderData
     plugins.value = pluginData
     pushEvents.value = pushData
-    composeForm.accountId = accounts.value[0]?.id || 1
-    activeFolderId.value = activeFolderId.value || folders.value[0]?.id
+    activeAccountId.value = activeAccountId.value || accounts.value[0]?.id
+    composeForm.accountId = activeAccountId.value || accounts.value[0]?.id || 1
+    if (!activeFolderId.value || !visibleFolders.value.some((folder) => folder.id === activeFolderId.value)) {
+      activeFolderId.value = visibleFolders.value[0]?.id
+    }
     await loadMessages()
     if (!selectedMessage.value && messages.value[0]) {
       await openMessage(messages.value[0].id)
@@ -437,6 +480,15 @@ async function loadMessages() {
 
 async function selectFolder(index: string) {
   activeFolderId.value = Number(index)
+  selectedMessage.value = null
+  analysis.value = null
+  await loadMessages()
+}
+
+async function switchAccount(accountId: number) {
+  activeAccountId.value = accountId
+  composeForm.accountId = accountId
+  activeFolderId.value = visibleFolders.value[0]?.id
   selectedMessage.value = null
   analysis.value = null
   await loadMessages()
@@ -477,6 +529,42 @@ async function removeSelectedMessage() {
 
 function openCompose() {
   composeVisible.value = true
+}
+
+function openAccountDrawer() {
+  accountDrawerVisible.value = true
+}
+
+async function addMailAccount() {
+  if (!accountForm.emailAddress) {
+    ElMessage.warning('请填写邮箱地址')
+    return
+  }
+  creatingAccount.value = true
+  try {
+    const emailAddress = accountForm.emailAddress.trim()
+    const accountRequest: MailAccountRequest = {
+      emailAddress,
+      displayName: accountForm.displayName || emailAddress,
+      smtpHost: 'localhost',
+      smtpPort: 1025,
+      smtpSsl: false,
+      imapHost: 'localhost',
+      imapPort: 1143,
+      imapSsl: false,
+      authUsername: emailAddress,
+      authPassword: 'password'
+    }
+    const account = await createAccount(accountRequest)
+    accountDrawerVisible.value = false
+    accountForm.emailAddress = ''
+    accountForm.displayName = ''
+    await loadAll()
+    await switchAccount(account.id)
+    ElMessage.success('邮箱账号已添加')
+  } finally {
+    creatingAccount.value = false
+  }
 }
 
 async function sendCurrentMessage() {

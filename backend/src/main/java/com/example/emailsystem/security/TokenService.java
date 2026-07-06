@@ -1,6 +1,7 @@
 package com.example.emailsystem.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class TokenService {
+    private static final int MIN_SECRET_LENGTH = 16;
     private final String secret;
     private final long expireSeconds;
     private final ObjectMapper objectMapper;
@@ -23,6 +25,16 @@ public class TokenService {
         this.secret = secret;
         this.expireSeconds = expireSeconds;
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    void validateSecret() {
+        if (secret == null || secret.isBlank() || secret.contains("replace-with") || secret.length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException(
+                "JWT secret is missing, too short (< " + MIN_SECRET_LENGTH + " chars), or uses a placeholder value. " +
+                "Set the JWT_SECRET environment variable to a secure random string."
+            );
+        }
     }
 
     public String createAccessToken(AuthUser user) {
@@ -80,8 +92,5 @@ public class TokenService {
     }
 
     private record Payload(Long id, String username, String displayName, long exp) {
-        private Payload() {
-            this(null, null, null, 0);
-        }
     }
 }

@@ -21,6 +21,19 @@ export interface MailAccount {
   status: number
 }
 
+export interface MailAccountRequest {
+  emailAddress: string
+  displayName: string
+  smtpHost: string
+  smtpPort: number
+  smtpSsl: boolean
+  imapHost: string
+  imapPort: number
+  imapSsl: boolean
+  authUsername: string
+  authPassword: string
+}
+
 export interface Folder {
   id: number
   accountId: number
@@ -118,6 +131,10 @@ export interface PluginStatus {
 
 export function listAccounts() {
   return http.get<unknown, MailAccount[]>('/mail-accounts')
+}
+
+export function createAccount(data: MailAccountRequest) {
+  return http.post<unknown, MailAccount>('/mail-accounts', data)
 }
 
 export function listFolders() {

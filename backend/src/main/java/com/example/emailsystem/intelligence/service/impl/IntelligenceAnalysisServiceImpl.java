@@ -1,13 +1,13 @@
 package com.example.emailsystem.intelligence.service.impl;
 
 import com.example.emailsystem.common.BusinessException;
-import com.example.emailsystem.dto.AppDtos.MessageDetail;
+import com.example.emailsystem.entity.MailMessage;
 import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.dto.ThreatIndicator;
 import com.example.emailsystem.intelligence.plugin.IntelligencePluginClient;
 import com.example.emailsystem.intelligence.service.IntelligenceAnalysisService;
 import com.example.emailsystem.security.SecurityUtils;
-import com.example.emailsystem.service.DemoMailboxService;
+import com.example.emailsystem.service.impl.MailMessageServiceImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -22,36 +22,36 @@ import org.springframework.stereotype.Service;
 @Service
 public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisService {
     private final IntelligencePluginClient pluginClient;
-    private final DemoMailboxService mailboxService;
+    private final MailMessageServiceImpl mailMessageService;
     private final ObjectMapper objectMapper;
     private final String pluginName;
     private final Map<Long, IntelligenceAnalysisResult> results = new ConcurrentHashMap<>();
 
     public IntelligenceAnalysisServiceImpl(
         IntelligencePluginClient pluginClient,
-        DemoMailboxService mailboxService,
+        MailMessageServiceImpl mailMessageService,
         ObjectMapper objectMapper,
         @Value("${intelligence.plugin.name}") String pluginName
     ) {
         this.pluginClient = pluginClient;
-        this.mailboxService = mailboxService;
+        this.mailMessageService = mailMessageService;
         this.objectMapper = objectMapper;
         this.pluginName = pluginName;
     }
 
     @Override
     public IntelligenceAnalysisResult analyzeMessage(Long messageId) {
-        MessageDetail message = mailboxService.getMessage(SecurityUtils.currentUser().id(), messageId);
+        MailMessage message = mailMessageService.getMessage(SecurityUtils.currentUser().id(), messageId);
         try {
             String requestJson = objectMapper.writeValueAsString(Map.of(
-                "requestId", "message-" + message.id(),
-                "messageId", message.id(),
-                "from", message.fromAddress(),
-                "to", message.to(),
-                "subject", message.subject(),
-                "plainText", message.preview(),
-                "html", message.content(),
-                "links", extractLinks(message.content()),
+                "requestId", "message-" + message.getId(),
+                "messageId", message.getId(),
+                "from", message.getFromAddress(),
+                "to", List.of(),
+                "subject", message.getSubject(),
+                "plainText", message.getPreview(),
+                "html", message.getContent(),
+                "links", extractLinks(message.getContent()),
                 "attachments", List.of(),
                 "locale", "zh-CN"
             ));
@@ -69,7 +69,7 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
                 ));
             }
             IntelligenceAnalysisResult result = new IntelligenceAnalysisResult(
-                message.id(),
+                message.getId(),
                 spam.path("label").asText("unknown"),
                 BigDecimal.valueOf(spam.path("score").asDouble(0)),
                 priority.path("label").asText("normal"),
@@ -81,8 +81,7 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
                 OffsetDateTime.now(),
                 threats
             );
-            results.put(message.id(), result);
-            mailboxService.applyIntelligence(message.id(), result.spamLabel(), result.priorityLabel(), result.riskLevel());
+            results.put(message.getId(), result);
             return result;
         } catch (Exception exception) {
             throw new BusinessException("INTELLIGENCE_503", "智能分析插件不可用");

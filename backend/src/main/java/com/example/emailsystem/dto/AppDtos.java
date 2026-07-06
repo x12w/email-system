@@ -16,6 +16,14 @@ public final class AppDtos {
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
     }
 
+    public record RegisterRequest(
+        @NotBlank String username,
+        @NotBlank String password,
+        @NotBlank String displayName,
+        @NotBlank @Email String emailAddress
+    ) {
+    }
+
     public record LoginResponse(String accessToken, String refreshToken, long expiresIn, UserInfo user) {
     }
 
@@ -115,6 +123,9 @@ public final class AppDtos {
         String content,
         List<Long> attachmentIds
     ) {
+    }
+
+    public record RefreshRequest(@NotBlank String refreshToken) {
     }
 
     public record ReadRequest(boolean read) {
