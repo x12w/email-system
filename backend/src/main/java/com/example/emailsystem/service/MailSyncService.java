@@ -85,8 +85,15 @@ public class MailSyncService {
             jakarta.mail.Store store = session.getStore("imaps");
             store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
 
-            Folder inbox = store.getFolder("INBOX");
-            inbox.open(Folder.READ_WRITE);
+            // Gmail 的 INBOX 不包含其他标签页的邮件，用 [Gmail]/All Mail 获取全部
+            Folder inbox;
+            try {
+                inbox = store.getFolder("[Gmail]/All Mail");
+                inbox.open(Folder.READ_ONLY);
+            } catch (Exception e) {
+                inbox = store.getFolder("INBOX");
+                inbox.open(Folder.READ_WRITE);
+            }
 
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
