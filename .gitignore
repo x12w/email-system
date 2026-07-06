@@ -16,6 +16,8 @@ frontend/.env
 frontend/.env.local
 frontend/.env.*.local
 frontend/package-lock.json
+frontend/src/auto-imports.d.ts
+frontend/src/components.d.ts
 
 # Backend
 backend/target/
