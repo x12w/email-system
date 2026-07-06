@@ -276,13 +276,52 @@
     </el-form>
   </el-drawer>
 
-  <el-drawer v-model="accountDrawerVisible" title="添加邮箱账号" size="440px">
+  <el-drawer v-model="accountDrawerVisible" title="添加邮箱账号" size="480px">
     <el-form label-position="top">
-      <el-form-item label="邮箱地址">
-        <el-input v-model="accountForm.emailAddress" placeholder="name@example.com" />
+      <el-form-item label="邮箱地址" required>
+        <el-input v-model="accountForm.emailAddress" placeholder="admin@mail.x12w.com" />
       </el-form-item>
       <el-form-item label="显示名称">
-        <el-input v-model="accountForm.displayName" placeholder="工作邮箱" />
+        <el-input v-model="accountForm.displayName" placeholder="Admin" />
+      </el-form-item>
+      <el-divider content-position="left">SMTP 发送服务器</el-divider>
+      <el-row :gutter="12">
+        <el-col :span="16">
+          <el-form-item label="SMTP 服务器">
+            <el-input v-model="accountForm.smtpHost" placeholder="smtp.resend.com" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="端口">
+            <el-input-number v-model="accountForm.smtpPort" :min="1" :max="65535" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-form-item label="">
+        <el-checkbox v-model="accountForm.smtpSsl">启用 SSL/TLS（端口 465 时开启）</el-checkbox>
+      </el-form-item>
+      <el-divider content-position="left">IMAP 接收服务器（可选）</el-divider>
+      <el-row :gutter="12">
+        <el-col :span="16">
+          <el-form-item label="IMAP 服务器">
+            <el-input v-model="accountForm.imapHost" placeholder="imap.gmail.com" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="端口">
+            <el-input-number v-model="accountForm.imapPort" :min="1" :max="65535" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-form-item label="">
+        <el-checkbox v-model="accountForm.imapSsl">启用 SSL/TLS</el-checkbox>
+      </el-form-item>
+      <el-divider content-position="left">认证信息</el-divider>
+      <el-form-item label="认证用户名">
+        <el-input v-model="accountForm.authUsername" placeholder="resend" />
+      </el-form-item>
+      <el-form-item label="认证密码 / API Key">
+        <el-input v-model="accountForm.authPassword" type="password" show-password placeholder="re_xxx..." />
       </el-form-item>
       <div class="drawer-actions">
         <el-button @click="accountDrawerVisible = false">取消</el-button>
@@ -426,7 +465,15 @@ const contactForm = reactive({
 
 const accountForm = reactive({
   emailAddress: '',
-  displayName: ''
+  displayName: '',
+  smtpHost: 'smtp.resend.com',
+  smtpPort: 587,
+  smtpSsl: false,
+  imapHost: '',
+  imapPort: 993,
+  imapSsl: true,
+  authUsername: 'resend',
+  authPassword: ''
 })
 
 const activeAccount = computed(() => accounts.value.find((account) => account.id === activeAccountId.value))
@@ -540,25 +587,27 @@ async function addMailAccount() {
     ElMessage.warning('请填写邮箱地址')
     return
   }
+  if (!accountForm.smtpHost || !accountForm.authUsername || !accountForm.authPassword) {
+    ElMessage.warning('请填写 SMTP 服务器和认证信息')
+    return
+  }
   creatingAccount.value = true
   try {
     const emailAddress = accountForm.emailAddress.trim()
     const accountRequest: MailAccountRequest = {
       emailAddress,
       displayName: accountForm.displayName || emailAddress,
-      smtpHost: 'localhost',
-      smtpPort: 1025,
-      smtpSsl: false,
-      imapHost: 'localhost',
-      imapPort: 1143,
-      imapSsl: false,
-      authUsername: emailAddress,
-      authPassword: 'password'
+      smtpHost: accountForm.smtpHost,
+      smtpPort: accountForm.smtpPort,
+      smtpSsl: accountForm.smtpSsl,
+      imapHost: accountForm.imapHost || undefined as unknown as string,
+      imapPort: accountForm.imapPort || undefined as unknown as number,
+      imapSsl: accountForm.imapSsl,
+      authUsername: accountForm.authUsername,
+      authPassword: accountForm.authPassword
     }
     const account = await createAccount(accountRequest)
     accountDrawerVisible.value = false
-    accountForm.emailAddress = ''
-    accountForm.displayName = ''
     await loadAll()
     await switchAccount(account.id)
     ElMessage.success('邮箱账号已添加')
