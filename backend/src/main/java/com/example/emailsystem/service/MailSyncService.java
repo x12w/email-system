@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -30,15 +31,18 @@ public class MailSyncService {
     private final MailFolderService mailFolderService;
     private final MailMessageMapper mailMessageMapper;
     private final MailRecipientMapper mailRecipientMapper;
+    private final int maxFetchCount;
 
     public MailSyncService(MailAccountService mailAccountService,
                            MailFolderService mailFolderService,
                            MailMessageMapper mailMessageMapper,
-                           MailRecipientMapper mailRecipientMapper) {
+                           MailRecipientMapper mailRecipientMapper,
+                           @Value("${mail.imap.fetch-count:50}") int maxFetchCount) {
         this.mailAccountService = mailAccountService;
         this.mailFolderService = mailFolderService;
         this.mailMessageMapper = mailMessageMapper;
         this.mailRecipientMapper = mailRecipientMapper;
+        this.maxFetchCount = maxFetchCount;
     }
 
     /**
@@ -91,8 +95,8 @@ public class MailSyncService {
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
 
-            // 首次同步拉最近 50 封，后续只拉新邮件
-            int fetchLimit = account.getLastSyncAt() != null ? 20 : 50;
+            // 首次拉指定数量，后续只拉增量
+            int fetchLimit = account.getLastSyncAt() != null ? 20 : maxFetchCount;
 
             Message[] allMessages = inbox.getMessages();
             int total = allMessages.length;
