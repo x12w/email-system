@@ -72,16 +72,24 @@
 
       <section class="sidebar-section">
         <h2>邮箱账号</h2>
-        <button
+        <div
           v-for="account in accounts"
           :key="account.id"
           class="account-row account-switcher"
           :class="{ active: account.id === activeAccountId }"
-          @click="switchAccount(account.id)"
         >
-          <span>{{ account.displayName || account.emailAddress }}</span>
-          <small>{{ account.emailAddress }}</small>
-        </button>
+          <div class="account-row-main" @click="switchAccount(account.id)">
+            <span>{{ account.displayName || account.emailAddress }}</span>
+            <small>{{ account.emailAddress }}</small>
+          </div>
+          <el-button
+            class="account-delete-btn"
+            :icon="Close"
+            circle
+            size="small"
+            @click.stop="removeAccount(account.id, account.emailAddress)"
+          />
+        </div>
       </section>
 
       <section class="sidebar-section">
@@ -366,6 +374,7 @@
 <script setup lang="ts">
 import {
   Bell,
+  Close,
   Cpu,
   Delete,
   Document,
@@ -382,7 +391,7 @@ import {
   User,
   View
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -390,6 +399,7 @@ import {
   analyzeMessage,
   createAccount,
   createContact,
+  deleteAccount,
   deleteMessage,
   getIntelligenceResult,
   getMessage,
@@ -576,6 +586,25 @@ async function removeSelectedMessage() {
 
 function openCompose() {
   composeVisible.value = true
+}
+
+async function removeAccount(id: number, email: string) {
+  try {
+    await ElMessageBox.confirm(`确定要移除账号 "${email}" 吗？`, '确认移除', {
+      confirmButtonText: '移除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await deleteAccount(id)
+    ElMessage.success('账号已移除')
+    if (activeAccountId.value === id) {
+      activeAccountId.value = undefined
+      selectedMessage.value = null
+    }
+    await loadAll()
+  } catch {
+    // user cancelled
+  }
 }
 
 function openAccountDrawer() {

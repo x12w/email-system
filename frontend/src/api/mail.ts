@@ -137,6 +137,10 @@ export function createAccount(data: MailAccountRequest) {
   return http.post<unknown, MailAccount>('/mail-accounts', data)
 }
 
+export function deleteAccount(id: number) {
+  return http.delete<unknown, void>(`/mail-accounts/${id}`)
+}
+
 export function listFolders() {
   return http.get<unknown, Folder[]>('/folders')
 }

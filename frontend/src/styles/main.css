@@ -414,6 +414,21 @@ button {
   box-shadow: 0 0 0 1px var(--accent), var(--shadow-soft);
 }
 
+.account-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-delete-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.account-switcher:hover .account-delete-btn {
+  opacity: 1;
+}
+
 .account-row span,
 .plugin-row span {
   overflow: hidden;
