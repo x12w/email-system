@@ -1,0 +1,184 @@
+package com.example.emailsystem.service;
+
+import com.example.emailsystem.entity.MailAccount;
+import com.example.emailsystem.entity.MailFolder;
+import com.example.emailsystem.entity.MailMessage;
+import com.example.emailsystem.entity.MailRecipient;
+import com.example.emailsystem.mapper.MailMessageMapper;
+import com.example.emailsystem.mapper.MailRecipientMapper;
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
+import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Properties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+@Service
+public class MailSyncService {
+    private static final Logger log = LoggerFactory.getLogger(MailSyncService.class);
+
+    private final MailAccountService mailAccountService;
+    private final MailFolderService mailFolderService;
+    private final MailMessageMapper mailMessageMapper;
+    private final MailRecipientMapper mailRecipientMapper;
+
+    public MailSyncService(MailAccountService mailAccountService,
+                           MailFolderService mailFolderService,
+                           MailMessageMapper mailMessageMapper,
+                           MailRecipientMapper mailRecipientMapper) {
+        this.mailAccountService = mailAccountService;
+        this.mailFolderService = mailFolderService;
+        this.mailMessageMapper = mailMessageMapper;
+        this.mailRecipientMapper = mailRecipientMapper;
+    }
+
+    /**
+     * 定时同步所有活跃邮箱的 INBOX 邮件（每 60 秒）
+     */
+    @Scheduled(fixedDelay = 60000)
+    public void syncAllAccounts() {
+        // 简化实现：同步 userId=1 的所有账号
+        syncUserAccounts(1L);
+    }
+
+    public void syncUserAccounts(Long userId) {
+        List<MailAccount> accounts = mailAccountService.listAccounts(userId);
+        for (MailAccount account : accounts) {
+            try {
+                syncInbox(account);
+            } catch (Exception e) {
+                log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
+            }
+        }
+    }
+
+    public int syncInbox(MailAccount account) {
+        if (account.getImapHost() == null || account.getImapPort() == null) {
+            return 0;
+        }
+        int count = 0;
+        Properties props = new Properties();
+        props.put("mail.store.protocol", "imap");
+        props.put("mail.imap.host", account.getImapHost());
+        props.put("mail.imap.port", String.valueOf(account.getImapPort()));
+        props.put("mail.imap.ssl.enable",
+            account.getImapSsl() != null && account.getImapSsl() == 1 ? "true" : "false");
+        props.put("mail.imap.auth", "true");
+
+        try {
+            Session session = Session.getInstance(props);
+            jakarta.mail.Store store = session.getStore("imap");
+            store.connect(account.getImapHost(), account.getImapPort(),
+                account.getAuthUsername(), account.getAuthPasswordEncrypted());
+
+            Folder inbox = store.getFolder("INBOX");
+            inbox.open(Folder.READ_WRITE);
+
+            MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
+                account.getId(), account.getUserId());
+
+            Message[] messages = inbox.getMessages();
+            for (Message msg : messages) {
+                if (msg.isSet(Flags.Flag.SEEN)) {
+                    continue; // 已读邮件跳过（已在之前同步过）
+                }
+                MimeMessage mimeMsg = (MimeMessage) msg;
+                MailMessage mailMessage = new MailMessage();
+                mailMessage.setUserId(account.getUserId());
+                mailMessage.setAccountId(account.getId());
+                mailMessage.setFolderId(inboxFolder.getId());
+
+                InternetAddress from = (InternetAddress) mimeMsg.getFrom()[0];
+                mailMessage.setFromAddress(from.getAddress());
+                mailMessage.setFromName(from.getPersonal());
+                mailMessage.setSubject(mimeMsg.getSubject() == null ? "" : mimeMsg.getSubject());
+                mailMessage.setContentType("html");
+                mailMessage.setContent(extractContent(mimeMsg));
+                mailMessage.setPreview(extractPreview(mailMessage.getContent()));
+                mailMessage.setSentAt(toLocalDateTime(mimeMsg.getSentDate()));
+                mailMessage.setReceivedAt(LocalDateTime.now());
+                mailMessage.setReadFlag(0);
+                mailMessage.setStarFlag(0);
+                mailMessage.setDraftFlag(0);
+                mailMessage.setDeletedFlag(0);
+                mailMessage.setAttachmentCount(0);
+                mailMessage.setCreatedAt(LocalDateTime.now());
+                mailMessage.setUpdatedAt(LocalDateTime.now());
+                mailMessageMapper.insert(mailMessage);
+
+                // 保存收件人
+                if (mimeMsg.getRecipients(Message.RecipientType.TO) != null) {
+                    for (jakarta.mail.Address addr : mimeMsg.getRecipients(Message.RecipientType.TO)) {
+                        saveRecipient(mailMessage.getId(), "to", (InternetAddress) addr);
+                    }
+                }
+
+                // 标记为已读（已同步）
+                msg.setFlag(Flags.Flag.SEEN, true);
+                count++;
+            }
+            inbox.close(false);
+            store.close();
+
+            if (count > 0) {
+                mailFolderService.updateCounts(inboxFolder.getId(), count, count);
+                log.info("IMAP 同步完成 account={}: {} 封新邮件", account.getEmailAddress(), count);
+            }
+        } catch (Exception e) {
+            log.error("IMAP 同步异常 account={}: {}", account.getEmailAddress(), e.getMessage());
+        }
+        return count;
+    }
+
+    private void saveRecipient(Long messageId, String type, InternetAddress addr) {
+        MailRecipient recipient = new MailRecipient();
+        recipient.setMessageId(messageId);
+        recipient.setType(type);
+        recipient.setEmailAddress(addr.getAddress().toLowerCase());
+        recipient.setDisplayName(addr.getPersonal());
+        mailRecipientMapper.insert(recipient);
+    }
+
+    private String extractContent(MimeMessage msg) throws Exception {
+        try {
+            Object content = msg.getContent();
+            if (content instanceof String) {
+                return (String) content;
+            }
+            if (content instanceof MimeMultipart multipart) {
+                for (int i = 0; i < multipart.getCount(); i++) {
+                    var part = multipart.getBodyPart(i);
+                    if (part.isMimeType("text/html") || part.isMimeType("text/plain")) {
+                        Object partContent = part.getContent();
+                        if (partContent instanceof String) {
+                            return (String) partContent;
+                        }
+                    }
+                }
+            }
+            return content.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String extractPreview(String content) {
+        if (content == null) return "";
+        String plain = content.replaceAll("<[^>]+>", "").strip();
+        return plain.length() > 120 ? plain.substring(0, 120) : plain;
+    }
+
+    private LocalDateTime toLocalDateTime(java.util.Date date) {
+        if (date == null) return LocalDateTime.now();
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+    }
+}

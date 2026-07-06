@@ -21,14 +21,14 @@ public class UserRegistryService {
     private final Map<String, StoredUser> usersByUsername = new ConcurrentHashMap<>();
     private final Map<Long, StoredUser> usersById = new ConcurrentHashMap<>();
     private final PasswordEncoder passwordEncoder;
-    private final DemoMailboxService mailboxService;
+    private final MailAccountService mailAccountService;
 
     @Value("${app.initial-admin.password:}")
     private String initialAdminPassword;
 
-    public UserRegistryService(PasswordEncoder passwordEncoder, DemoMailboxService mailboxService) {
+    public UserRegistryService(PasswordEncoder passwordEncoder, MailAccountService mailAccountService) {
         this.passwordEncoder = passwordEncoder;
-        this.mailboxService = mailboxService;
+        this.mailAccountService = mailAccountService;
     }
 
     @PostConstruct
@@ -44,7 +44,7 @@ public class UserRegistryService {
         if (usersByUsername.containsKey(username)) {
             throw new BusinessException("AUTH_400", "用户名已存在");
         }
-        if (mailboxService.emailAddressExists(emailAddress)) {
+        if (mailAccountService.emailAddressExists(emailAddress)) {
             throw new BusinessException("MAIL_400", "邮箱地址已被注册");
         }
         long userId = userIdGenerator.incrementAndGet();
@@ -57,7 +57,7 @@ public class UserRegistryService {
         );
         usersByUsername.put(username, user);
         usersById.put(userId, user);
-        mailboxService.createDefaultMailbox(userId, emailAddress, request.displayName());
+        mailAccountService.createDefaultMailbox(userId, emailAddress, request.displayName());
         return user.toAuthUser();
     }
 

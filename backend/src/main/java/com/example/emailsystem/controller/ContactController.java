@@ -3,47 +3,56 @@ package com.example.emailsystem.controller;
 import com.example.emailsystem.common.ApiResponse;
 import com.example.emailsystem.dto.AppDtos.ContactRequest;
 import com.example.emailsystem.dto.AppDtos.ContactResponse;
+import com.example.emailsystem.entity.Contact;
 import com.example.emailsystem.security.SecurityUtils;
-import com.example.emailsystem.service.DemoMailboxService;
+import com.example.emailsystem.service.ContactService;
 import jakarta.validation.Valid;
 import java.util.List;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import java.util.stream.Collectors;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/contacts")
 public class ContactController {
-    private final DemoMailboxService mailboxService;
+    private final ContactService contactService;
 
-    public ContactController(DemoMailboxService mailboxService) {
-        this.mailboxService = mailboxService;
+    public ContactController(ContactService contactService) {
+        this.contactService = contactService;
     }
 
     @GetMapping
     public ApiResponse<List<ContactResponse>> list(@RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(mailboxService.listContacts(SecurityUtils.currentUser().id(), keyword));
+        return ApiResponse.ok(contactService.listContacts(SecurityUtils.currentUser().id(), keyword)
+            .stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
     @PostMapping
     public ApiResponse<ContactResponse> create(@Valid @RequestBody ContactRequest request) {
-        return ApiResponse.ok(mailboxService.createContact(SecurityUtils.currentUser().id(), request));
+        Contact contact = new Contact();
+        contact.setName(request.name());
+        contact.setEmailAddress(request.emailAddress());
+        contact.setPhone(request.phone());
+        contact.setRemark(request.remark());
+        return ApiResponse.ok(toResponse(contactService.createContact(SecurityUtils.currentUser().id(), contact)));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<ContactResponse> update(@PathVariable Long id, @Valid @RequestBody ContactRequest request) {
-        return ApiResponse.ok(mailboxService.updateContact(SecurityUtils.currentUser().id(), id, request));
+        Contact update = new Contact();
+        update.setName(request.name());
+        update.setEmailAddress(request.emailAddress());
+        update.setPhone(request.phone());
+        update.setRemark(request.remark());
+        return ApiResponse.ok(toResponse(contactService.updateContact(SecurityUtils.currentUser().id(), id, update)));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        mailboxService.deleteContact(SecurityUtils.currentUser().id(), id);
+        contactService.deleteContact(SecurityUtils.currentUser().id(), id);
         return ApiResponse.ok(null);
+    }
+
+    private ContactResponse toResponse(Contact c) {
+        return new ContactResponse(c.getId(), c.getName(), c.getEmailAddress(), c.getPhone(), c.getRemark());
     }
 }
