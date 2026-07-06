@@ -466,13 +466,13 @@ const contactForm = reactive({
 const accountForm = reactive({
   emailAddress: '',
   displayName: '',
-  smtpHost: 'smtp.resend.com',
+  smtpHost: '',
   smtpPort: 587,
   smtpSsl: false,
   imapHost: '',
   imapPort: 993,
   imapSsl: true,
-  authUsername: 'resend',
+  authUsername: '',
   authPassword: ''
 })
 
@@ -579,6 +579,16 @@ function openCompose() {
 }
 
 function openAccountDrawer() {
+  accountForm.emailAddress = ''
+  accountForm.displayName = ''
+  accountForm.smtpHost = ''
+  accountForm.smtpPort = 587
+  accountForm.smtpSsl = false
+  accountForm.imapHost = ''
+  accountForm.imapPort = 993
+  accountForm.imapSsl = true
+  accountForm.authUsername = ''
+  accountForm.authPassword = ''
   accountDrawerVisible.value = true
 }
 
