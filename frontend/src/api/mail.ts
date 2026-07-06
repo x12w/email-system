@@ -186,6 +186,57 @@ export function syncImap(accountId: number) {
   return http.post<unknown, void>(`/sync/imap/${accountId}`)
 }
 
+// Intelligence
+export interface IntelligenceResult {
+  messageId: number
+  spamLabel: string
+  spamScore: number
+  priorityLabel: string
+  priorityScore: number
+  riskLevel: string
+  riskScore: number
+  pluginName: string
+  pluginVersion: string
+  analyzedAt: string
+  threats: Array<{
+    type: string
+    value: string
+    riskLevel: string
+    reason: string
+  }>
+}
+
+export interface PushEvent {
+  id: number
+  messageId: number
+  eventType: string
+  title: string
+  content: string
+  priority: string
+  readFlag: number
+  pushedAt: string
+}
+
+export function getIntelligenceResult(messageId: number) {
+  return http.get<unknown, IntelligenceResult>(`/intelligence/messages/${messageId}`)
+}
+
+export function analyzeMessage(messageId: number) {
+  return http.post<unknown, IntelligenceResult>(`/intelligence/messages/${messageId}/analyze`)
+}
+
+export function listThreats(page = 1, size = 20) {
+  return http.get<unknown, any[]>('/intelligence/threats', { params: { page, size } })
+}
+
+export function listPushEvents() {
+  return http.get<unknown, PushEvent[]>('/intelligence/push-events')
+}
+
+export function markPushEventRead(id: number) {
+  return http.put<unknown, void>(`/intelligence/push-events/${id}/read`)
+}
+
 // Attachments
 export function uploadAttachment(file: File) {
   const form = new FormData()
