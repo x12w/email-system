@@ -85,12 +85,17 @@ public class MailSyncService {
             jakarta.mail.Store store = session.getStore("imaps");
             store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
 
-            // Gmail 的 INBOX 不包含其他标签页的邮件，用 [Gmail]/All Mail 获取全部
-            Folder inbox;
-            try {
-                inbox = store.getFolder("[Gmail]/All Mail");
-                inbox.open(Folder.READ_ONLY);
-            } catch (Exception e) {
+            // Gmail: 尝试多种 All Mail 路径（中英文）
+            Folder inbox = null;
+            for (String name : new String[]{"[Gmail]/All Mail", "[Gmail]/所有邮件", "INBOX"}) {
+                try {
+                    inbox = store.getFolder(name);
+                    inbox.open(Folder.READ_ONLY);
+                    log.info("IMAP 已打开文件夹: {}", name);
+                    break;
+                } catch (Exception ignored) {}
+            }
+            if (inbox == null || !inbox.isOpen()) {
                 inbox = store.getFolder("INBOX");
                 inbox.open(Folder.READ_WRITE);
             }
@@ -98,16 +103,11 @@ public class MailSyncService {
             MailFolder inboxFolder = mailFolderService.getOrCreateInboxFolder(
                 account.getId(), account.getUserId());
 
-            // 首次同步仅拉取最近 7 天；后续同步拉取上次同步之后的
-            java.util.Date since;
-            if (account.getLastSyncAt() != null) {
-                since = java.util.Date.from(account.getLastSyncAt()
-                    .atZone(java.time.ZoneId.systemDefault()).toInstant());
-            } else {
-                var cal = java.util.Calendar.getInstance();
-                cal.add(java.util.Calendar.DAY_OF_MONTH, -7);
-                since = cal.getTime();
-            }
+            // 首次同步最近 7 天；后续同步拉最近 1 天（避免遗漏）
+            var cal = java.util.Calendar.getInstance();
+            int lookbackDays = account.getLastSyncAt() != null ? 1 : 7;
+            cal.add(java.util.Calendar.DAY_OF_MONTH, -lookbackDays);
+            java.util.Date since = cal.getTime();
 
             Message[] messages = inbox.getMessages();
             for (Message msg : messages) {
