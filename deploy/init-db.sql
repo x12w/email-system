@@ -1,0 +1,3 @@
+-- Docker Compose 入口初始化脚本
+-- Flyway 会在应用启动时自动执行 V1__init_schema.sql 建表
+-- 这里只保证数据库存在（MySQL 8.0 的 docker-entrypoint-initdb.d 机制）
