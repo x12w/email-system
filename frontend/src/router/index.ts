@@ -11,7 +11,19 @@ const router = createRouter({
     {
       path: '/',
       name: 'mail',
-      component: () => import('@/views/mail/MailHomeView.vue')
+      component: () => import('@/views/mail/MailHomeView.vue'),
+      children: [
+        {
+          path: 'compose',
+          name: 'compose',
+          component: () => import('@/views/mail/MailComposeView.vue')
+        },
+        {
+          path: 'contacts',
+          name: 'contacts',
+          component: () => import('@/views/mail/MailContactsView.vue')
+        }
+      ]
     }
   ]
 })

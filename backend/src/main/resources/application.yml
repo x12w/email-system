@@ -13,6 +13,7 @@ security:
   jwt:
     secret: ${JWT_SECRET:replace-with-at-least-32-bytes-secret}
     expire-seconds: ${JWT_EXPIRE_SECONDS:7200}
+  mail-password-secret: ${MAIL_PASSWORD_SECRET:change-me-to-a-16-byte-key}
 
 storage:
   type: ${STORAGE_TYPE:local}
