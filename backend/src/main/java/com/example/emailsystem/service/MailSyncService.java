@@ -129,7 +129,7 @@ public class MailSyncService {
                 mailMessage.setContent(extractContent(mimeMsg));
                 mailMessage.setPreview(extractPreview(mailMessage.getContent()));
                 mailMessage.setSentAt(toLocalDateTime(mimeMsg.getSentDate()));
-                mailMessage.setReceivedAt(LocalDateTime.now());
+                mailMessage.setReceivedAt(toLocalDateTime(mimeMsg.getReceivedDate()));
                 mailMessage.setReadFlag(0);
                 mailMessage.setStarFlag(0);
                 mailMessage.setDraftFlag(0);
