@@ -62,7 +62,8 @@ public class MailSyncService {
     }
 
     public int syncInbox(MailAccount account) {
-        if (account.getImapHost() == null || account.getImapPort() == null) {
+        if (account.getImapHost() == null || account.getImapHost().isBlank()
+            || account.getImapPort() == null) {
             return 0;
         }
         int count = 0;
