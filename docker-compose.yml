@@ -61,6 +61,36 @@ services:
     environment:
       MP_DATABASE: /data/mailpit.db
 
+  mailserver:
+    image: docker.io/mailserver/docker-mailserver:15.0.0
+    container_name: email-system-mailserver
+    hostname: mail.x12w.com
+    ports:
+      - "25:25"
+      - "993:993"
+    volumes:
+      - ./data/mailserver/mail-data:/var/mail
+      - ./data/mailserver/mail-state:/var/mail-state
+      - ./data/mailserver/config:/tmp/docker-mailserver
+      - /etc/letsencrypt/live/panel.x12w.com/fullchain.pem:/etc/letsencrypt/live/panel.x12w.com/fullchain.pem:ro
+      - /etc/letsencrypt/live/panel.x12w.com/privkey.pem:/etc/letsencrypt/live/panel.x12w.com/privkey.pem:ro
+    environment:
+      SSL_TYPE: manual
+      SSL_CERT_PATH: /etc/letsencrypt/live/panel.x12w.com/fullchain.pem
+      SSL_KEY_PATH: /etc/letsencrypt/live/panel.x12w.com/privkey.pem
+      PERMIT_DOCKER: connected-networks
+      ONE_DIR: 1
+      ENABLE_IMAP: 1
+      ENABLE_POP3: 0
+      ENABLE_CLAMAV: 0
+      ENABLE_RSPAMD: 0
+      ENABLE_FAIL2BAN: 0
+      ENABLE_POSTGREY: 0
+      POSTMASTER_ADDRESS: admin@x12w.com
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+
   nginx:
     image: nginx:1.27-alpine
     container_name: email-system-nginx

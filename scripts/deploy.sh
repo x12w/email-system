@@ -124,21 +124,20 @@ start_backend() {
     jar=$(ls -t "$BACKEND_DIR/target/"*.jar 2>/dev/null | head -1)
   fi
 
-  # 从 .env 读取配置传给 Java 进程
+  # 将 .env 中的全部变量转为 -D JVM 参数
   local env_opts=()
-  [ -n "${MYSQL_HOST:-}" ]      && env_opts+=("-DMYSQL_HOST=$MYSQL_HOST")
-  [ -n "${MYSQL_PORT:-}" ]      && env_opts+=("-DMYSQL_PORT=$MYSQL_PORT")
-  [ -n "${MYSQL_DATABASE:-}" ]  && env_opts+=("-DMYSQL_DATABASE=$MYSQL_DATABASE")
-  [ -n "${MYSQL_USER:-}" ]      && env_opts+=("-DMYSQL_USER=$MYSQL_USER")
-  [ -n "${MYSQL_PASSWORD:-}" ]  && env_opts+=("-DMYSQL_PASSWORD=$MYSQL_PASSWORD")
-  [ -n "${REDIS_HOST:-}" ]      && env_opts+=("-DREDIS_HOST=$REDIS_HOST")
-  [ -n "${REDIS_PORT:-}" ]      && env_opts+=("-DREDIS_PORT=$REDIS_PORT")
-  [ -n "${REDIS_PASSWORD:-}" ]  && env_opts+=("-DREDIS_PASSWORD=$REDIS_PASSWORD")
-  [ -n "${JWT_SECRET:-}" ]      && env_opts+=("-DJWT_SECRET=$JWT_SECRET")
-  [ -n "${JWT_EXPIRE_SECONDS:-}" ] && env_opts+=("-DJWT_EXPIRE_SECONDS=$JWT_EXPIRE_SECONDS")
-  [ -n "${STORAGE_TYPE:-}" ]    && env_opts+=("-DSTORAGE_TYPE=$STORAGE_TYPE")
-  [ -n "${MAIL_HOST:-}" ]       && env_opts+=("-DMAIL_HOST=$MAIL_HOST")
-  [ -n "${MAIL_PORT:-}" ]       && env_opts+=("-DMAIL_PORT=$MAIL_PORT")
+  if [ -f "$ENV_FILE" ]; then
+    while IFS='=' read -r key value; do
+      # 跳过注释和空行
+      [[ "$key" =~ ^# ]] && continue
+      [[ -z "$key" ]] && continue
+      # 去掉 value 中的行内注释
+      value="${value%%#*}"
+      value="${value//\"/}"
+      value="${value//\'/}"
+      [ -n "${!key:-}" ] && env_opts+=("-D$key=${!key}")
+    done < "$ENV_FILE"
+  fi
 
   info "启动后端: $jar"
   nohup java "${env_opts[@]}" -jar "$jar" \
@@ -159,12 +158,56 @@ start_backend() {
 }
 
 start_nginx() {
-  if grep -q "nginx:" "$PROJECT_DIR/docker-compose.yml" 2>/dev/null; then
-    info "启动 Nginx..."
-    cd "$PROJECT_DIR"
-    docker compose --profile app up -d nginx 2>/dev/null || true
-    ok "Nginx 已就绪 → http://localhost"
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -q email-system-nginx && return 0
+
+  info "启动 Nginx..."
+  local dist_dir="$FRONTEND_DIR/dist"
+  if [ ! -d "$dist_dir" ]; then
+    warn "前端未构建，跳过 Nginx"
+    return 0
   fi
+
+  local cert_dir="/etc/letsencrypt/live/\${DOMAIN:-panel.x12w.com}"
+  local ssl_block=""
+  local extra_mounts=""
+  if [ -f "$cert_dir/fullchain.pem" ]; then
+    ssl_block="
+    listen 443 ssl;
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;"
+    extra_mounts="-v $cert_dir/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      -v $cert_dir/privkey.pem:/etc/nginx/certs/privkey.pem:ro"
+    ok "检测到 SSL 证书，启用 HTTPS"
+  fi
+
+  cat > /tmp/nginx-email.conf << NGINX_EOF
+server {
+    listen 80;
+    \${ssl_block:+listen 443 ssl;}
+    \${ssl_block:+ssl_certificate /etc/nginx/certs/fullchain.pem;}
+    \${ssl_block:+ssl_certificate_key /etc/nginx/certs/privkey.pem;}
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 50m;
+    location / { try_files \\\$uri \\\$uri/ /index.html; }
+    location /api/ {
+        proxy_pass http://172.17.0.1:8080/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\\$scheme;
+    }
+}
+NGINX_EOF
+
+  docker rm -f email-system-nginx 2>/dev/null || true
+  docker run -d --name email-system-nginx --network host \
+    -v "$dist_dir:/usr/share/nginx/html:ro" \
+    -v /tmp/nginx-email.conf:/etc/nginx/conf.d/default.conf:ro \
+    $extra_mounts \
+    nginx:1.27-alpine >/dev/null 2>&1
+  ok "Nginx 已就绪 → http://localhost"
 }
 
 start() {
@@ -183,8 +226,9 @@ stop() {
     kill "$(cat "$BACKEND_PID")" 2>/dev/null && ok "后端已停止" || true
     rm -f "$BACKEND_PID"
   fi
-  # 确保占 8080 端口的进程被干掉
   fuser -k 8080/tcp 2>/dev/null || true
+
+  docker rm -f email-system-nginx 2>/dev/null && ok "Nginx 已停止" || true
 
   cd "$PROJECT_DIR"
   docker compose --profile app down 2>/dev/null || true
@@ -213,9 +257,9 @@ status() {
   fi
 
   # 前端 / Nginx
-  if curl -s -o /dev/null -w '%{http_code}' http://localhost 2>/dev/null | grep -q '200\|304'; then
+  if curl -s -o /dev/null -w '%{http_code}' http://localhost 2>/dev/null | grep -q '200\|301\|304'; then
     echo -e "  前端 (80):      ${GREEN}● 运行中${NC}"
-  elif curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null | grep -q '200\|304'; then
+  elif curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null | grep -q '200\|301\|304'; then
     echo -e "  前端 (5173):    ${GREEN}● 运行中 (dev)${NC}"
   else
     echo -e "  前端:           ${RED}○ 未运行${NC}"
@@ -242,12 +286,35 @@ status() {
 
 # ---- 日志 ----
 logs() {
-  if [ -f "$BACKEND_LOG" ]; then
-    tail -f "$BACKEND_LOG"
-  else
-    warn "日志文件不存在: $BACKEND_LOG"
-    info "使用 docker logs 查看容器日志: docker compose logs -f"
-  fi
+  local target="${2:-backend}"
+  local lines="${3:-50}"
+  case "$target" in
+    backend|be)
+      if [ -f "$BACKEND_LOG" ]; then
+        tail -${lines} "$BACKEND_LOG"
+        echo ""
+        info "实时日志: tail -f $BACKEND_LOG"
+      else
+        warn "后端日志不存在: $BACKEND_LOG"
+      fi
+      ;;
+    nginx|ng)
+      docker logs --tail "$lines" email-system-nginx 2>/dev/null || warn "Nginx 容器未运行"
+      ;;
+    mysql|db)
+      docker logs --tail "$lines" email-system-mysql 2>/dev/null || warn "MySQL 容器未运行"
+      ;;
+    all)
+      echo -e "${BLUE}═══ 后端日志 (最近 $lines 行) ═══${NC}"
+      tail -${lines} "$BACKEND_LOG" 2>/dev/null
+      echo ""
+      echo -e "${BLUE}═══ Nginx 日志 ═══${NC}"
+      docker logs --tail 10 email-system-nginx 2>/dev/null
+      ;;
+    *)
+      echo "用法: $0 logs [backend|nginx|mysql|all] [行数]"
+      ;;
+  esac
 }
 
 # ---- 更新 ----
