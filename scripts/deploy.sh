@@ -158,7 +158,6 @@ start_backend() {
 }
 
 start_nginx() {
-  # 已经有 nginx 在跑就跳过
   docker ps --format '{{.Names}}' 2>/dev/null | grep -q email-system-nginx && return 0
 
   info "启动 Nginx..."
@@ -168,10 +167,25 @@ start_nginx() {
     return 0
   fi
 
+  local cert_dir="/etc/letsencrypt/live/\${DOMAIN:-panel.x12w.com}"
+  local ssl_block=""
+  local extra_mounts=""
+  if [ -f "$cert_dir/fullchain.pem" ]; then
+    ssl_block="
+    listen 443 ssl;
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;"
+    extra_mounts="-v $cert_dir/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      -v $cert_dir/privkey.pem:/etc/nginx/certs/privkey.pem:ro"
+    ok "检测到 SSL 证书，启用 HTTPS"
+  fi
+
   cat > /tmp/nginx-email.conf << NGINX_EOF
 server {
     listen 80;
-    server_name _;
+    \${ssl_block:+listen 443 ssl;}
+    \${ssl_block:+ssl_certificate /etc/nginx/certs/fullchain.pem;}
+    \${ssl_block:+ssl_certificate_key /etc/nginx/certs/privkey.pem;}
     root /usr/share/nginx/html;
     index index.html;
     client_max_body_size 50m;
@@ -182,6 +196,7 @@ server {
         proxy_set_header Host \\\$host;
         proxy_set_header X-Real-IP \\\$remote_addr;
         proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\\$scheme;
     }
 }
 NGINX_EOF
@@ -190,6 +205,7 @@ NGINX_EOF
   docker run -d --name email-system-nginx --network host \
     -v "$dist_dir:/usr/share/nginx/html:ro" \
     -v /tmp/nginx-email.conf:/etc/nginx/conf.d/default.conf:ro \
+    $extra_mounts \
     nginx:1.27-alpine >/dev/null 2>&1
   ok "Nginx 已就绪 → http://localhost"
 }
