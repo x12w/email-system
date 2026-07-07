@@ -108,7 +108,8 @@ public class MailSyncService {
                 String msgId = ((MimeMessage) msg).getMessageID();
                 if (msgId != null && mailMessageMapper.selectCount(
                     new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
-                        .eq("message_id", msgId)) > 0) {
+                        .eq("message_id", msgId)
+                        .eq("account_id", account.getId())) > 0) {
                     continue;
                 }
                 MimeMessage mimeMsg = (MimeMessage) msg;
