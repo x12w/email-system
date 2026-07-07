@@ -286,12 +286,35 @@ status() {
 
 # ---- 日志 ----
 logs() {
-  if [ -f "$BACKEND_LOG" ]; then
-    tail -f "$BACKEND_LOG"
-  else
-    warn "日志文件不存在: $BACKEND_LOG"
-    info "使用 docker logs 查看容器日志: docker compose logs -f"
-  fi
+  local target="${2:-backend}"
+  local lines="${3:-50}"
+  case "$target" in
+    backend|be)
+      if [ -f "$BACKEND_LOG" ]; then
+        tail -${lines} "$BACKEND_LOG"
+        echo ""
+        info "实时日志: tail -f $BACKEND_LOG"
+      else
+        warn "后端日志不存在: $BACKEND_LOG"
+      fi
+      ;;
+    nginx|ng)
+      docker logs --tail "$lines" email-system-nginx 2>/dev/null || warn "Nginx 容器未运行"
+      ;;
+    mysql|db)
+      docker logs --tail "$lines" email-system-mysql 2>/dev/null || warn "MySQL 容器未运行"
+      ;;
+    all)
+      echo -e "${BLUE}═══ 后端日志 (最近 $lines 行) ═══${NC}"
+      tail -${lines} "$BACKEND_LOG" 2>/dev/null
+      echo ""
+      echo -e "${BLUE}═══ Nginx 日志 ═══${NC}"
+      docker logs --tail 10 email-system-nginx 2>/dev/null
+      ;;
+    *)
+      echo "用法: $0 logs [backend|nginx|mysql|all] [行数]"
+      ;;
+  esac
 }
 
 # ---- 更新 ----
