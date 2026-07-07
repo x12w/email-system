@@ -257,9 +257,9 @@ status() {
   fi
 
   # 前端 / Nginx
-  if curl -s -o /dev/null -w '%{http_code}' http://localhost 2>/dev/null | grep -q '200\|304'; then
+  if curl -s -o /dev/null -w '%{http_code}' http://localhost 2>/dev/null | grep -q '200\|301\|304'; then
     echo -e "  前端 (80):      ${GREEN}● 运行中${NC}"
-  elif curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null | grep -q '200\|304'; then
+  elif curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null | grep -q '200\|301\|304'; then
     echo -e "  前端 (5173):    ${GREEN}● 运行中 (dev)${NC}"
   else
     echo -e "  前端:           ${RED}○ 未运行${NC}"
