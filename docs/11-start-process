@@ -11,11 +11,16 @@
 | Node.js | 20+ |
 | Docker + Docker Compose | 最新稳定版 |
 
+#### 修改.env.example中的JWT_SECRET 
+
 ### 第一步：启动基础设施
 
 项目使用 Docker Compose 管理 MySQL、Redis、MinIO（对象存储）、Mailpit（邮件测试）四个基础服务。
 
 ```bash
+# 生成.env
+cp .env.example .env
+
 # 在项目根目录执行
 docker-compose up -d
 ```
