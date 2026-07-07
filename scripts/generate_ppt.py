@@ -562,7 +562,7 @@ achievements = [
 ]
 y7 = Inches(1.9)
 for a in achievements:
-    txt(s11, Inches(1.0), y7, Inches(5.5), Inches(0.25), f"✓ {a}", 13, RGBColor(0xCBD,0xD5,0xE1))
+    txt(s11, Inches(1.0), y7, Inches(5.5), Inches(0.25), f"✓ {a}", 13, RGBColor(0xCB,0xD5,0xE1))
     y7 += Inches(0.35)
 
 # Right: future
@@ -579,7 +579,7 @@ future = [
 ]
 y8 = Inches(1.9)
 for f in future:
-    txt(s11, Inches(7.0), y8, Inches(5.5), Inches(0.25), f"→ {f}", 13, RGBColor(0xCBD,0xD5,0xE1))
+    txt(s11, Inches(7.0), y8, Inches(5.5), Inches(0.25), f"→ {f}", 13, RGBColor(0xCB,0xD5,0xE1))
     y8 += Inches(0.35)
 
 # Bottom
