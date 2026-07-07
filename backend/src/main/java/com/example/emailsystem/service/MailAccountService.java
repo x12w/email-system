@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.emailsystem.common.BusinessException;
 import com.example.emailsystem.entity.MailAccount;
 import com.example.emailsystem.mapper.MailAccountMapper;
+import com.example.emailsystem.security.EncryptionService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -16,10 +17,21 @@ public class MailAccountService {
 
     private final MailAccountMapper mailAccountMapper;
     private final MailFolderService mailFolderService;
+    private final EncryptionService encryptionService;
 
-    public MailAccountService(MailAccountMapper mailAccountMapper, MailFolderService mailFolderService) {
+    public MailAccountService(MailAccountMapper mailAccountMapper, MailFolderService mailFolderService,
+                              EncryptionService encryptionService) {
         this.mailAccountMapper = mailAccountMapper;
         this.mailFolderService = mailFolderService;
+        this.encryptionService = encryptionService;
+    }
+
+    /**
+     * Returns the decrypted IMAP/SMTP password for the given account.
+     * Use this instead of account.getAuthPasswordEncrypted() directly.
+     */
+    public String getDecryptedPassword(MailAccount account) {
+        return encryptionService.decrypt(account.getAuthPasswordEncrypted());
     }
 
     public List<MailAccount> listAccounts(Long userId) {
@@ -56,6 +68,7 @@ public class MailAccountService {
         }
         account.setUserId(userId);
         account.setEmailAddress(normalizedEmail);
+        account.setAuthPasswordEncrypted(encryptionService.encrypt(account.getAuthPasswordEncrypted()));
         account.setStatus(1);
         account.setCreatedAt(LocalDateTime.now());
         account.setUpdatedAt(LocalDateTime.now());
@@ -77,7 +90,7 @@ public class MailAccountService {
         account.setImapSsl(update.getImapSsl());
         account.setAuthUsername(update.getAuthUsername());
         if (update.getAuthPasswordEncrypted() != null && !update.getAuthPasswordEncrypted().isBlank()) {
-            account.setAuthPasswordEncrypted(update.getAuthPasswordEncrypted());
+            account.setAuthPasswordEncrypted(encryptionService.encrypt(update.getAuthPasswordEncrypted()));
         }
         account.setUpdatedAt(LocalDateTime.now());
         mailAccountMapper.updateById(account);
@@ -105,7 +118,7 @@ public class MailAccountService {
         account.setImapPort(1143);
         account.setImapSsl(0);
         account.setAuthUsername(emailAddress);
-        account.setAuthPasswordEncrypted("password");
+        account.setAuthPasswordEncrypted(encryptionService.encrypt(""));
         return createAccount(userId, account);
     }
 }

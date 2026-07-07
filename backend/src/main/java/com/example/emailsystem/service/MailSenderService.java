@@ -23,13 +23,16 @@ public class MailSenderService {
     private final MailMessageMapper mailMessageMapper;
     private final MailRecipientMapper mailRecipientMapper;
     private final MailFolderService mailFolderService;
+    private final MailAccountService mailAccountService;
 
     public MailSenderService(MailMessageMapper mailMessageMapper,
                              MailRecipientMapper mailRecipientMapper,
-                             MailFolderService mailFolderService) {
+                             MailFolderService mailFolderService,
+                             MailAccountService mailAccountService) {
         this.mailMessageMapper = mailMessageMapper;
         this.mailRecipientMapper = mailRecipientMapper;
         this.mailFolderService = mailFolderService;
+        this.mailAccountService = mailAccountService;
     }
 
     public MailMessage send(MailAccount account, String subject, String contentType, String content,
@@ -145,7 +148,7 @@ public class MailSenderService {
         sender.setHost(account.getSmtpHost());
         sender.setPort(account.getSmtpPort() != null ? account.getSmtpPort() : 25);
         sender.setUsername(account.getAuthUsername());
-        sender.setPassword(account.getAuthPasswordEncrypted());
+        sender.setPassword(mailAccountService.getDecryptedPassword(account));
 
         var props = sender.getJavaMailProperties();
         props.put("mail.smtp.auth", "true");
@@ -168,7 +171,13 @@ public class MailSenderService {
 
     private String extractPreview(String content) {
         if (content == null) return "";
-        String plain = content.replaceAll("<[^>]+>", "").strip();
+        // Strip script/style blocks and their contents, then remove remaining HTML tags
+        String plain = content
+            .replaceAll("(?is)<script[^>]*>.*?</script>", " ")
+            .replaceAll("(?is)<style[^>]*>.*?</style>", " ")
+            .replaceAll("<[^>]+>", " ")
+            .replaceAll("\\s+", " ")
+            .strip();
         return plain.length() > 120 ? plain.substring(0, 120) : plain;
     }
 }

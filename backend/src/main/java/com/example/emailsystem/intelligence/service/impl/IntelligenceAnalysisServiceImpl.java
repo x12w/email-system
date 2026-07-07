@@ -26,6 +26,8 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
     private final ObjectMapper objectMapper;
     private final String pluginName;
     private final Map<Long, IntelligenceAnalysisResult> results = new ConcurrentHashMap<>();
+    // Max cached results before evicting oldest entries
+    private static final int MAX_CACHED_RESULTS = 1000;
 
     public IntelligenceAnalysisServiceImpl(
         IntelligencePluginClient pluginClient,
@@ -81,6 +83,15 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
                 OffsetDateTime.now(),
                 threats
             );
+            // Evict oldest entries if cache exceeds limit
+            if (results.size() >= MAX_CACHED_RESULTS) {
+                var it = results.keySet().iterator();
+                int toRemove = results.size() - MAX_CACHED_RESULTS + 1;
+                for (int i = 0; i < toRemove && it.hasNext(); i++) {
+                    it.next();
+                    it.remove();
+                }
+            }
             results.put(message.getId(), result);
             return result;
         } catch (Exception exception) {

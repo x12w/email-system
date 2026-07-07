@@ -30,6 +30,9 @@ data/uploads/*
 !data/mailpit/.gitkeep
 !data/uploads/.gitkeep
 
+# Documents (local only, not for version control)
+docs/*.docx
+
 # Docker / temp
 *.tmp
 *.pid
