@@ -167,7 +167,8 @@ start_nginx() {
     return 0
   fi
 
-  local cert_dir="/etc/letsencrypt/live/\${DOMAIN:-panel.x12w.com}"
+  local domain="${DOMAIN:-panel.x12w.com}"
+  local cert_dir="/etc/letsencrypt/live/$domain"
   local ssl_block=""
   local extra_mounts=""
   if [ -f "$cert_dir/fullchain.pem" ]; then
@@ -191,7 +192,7 @@ server {
     client_max_body_size 50m;
     location / { try_files \\\$uri \\\$uri/ /index.html; }
     location /api/ {
-        proxy_pass http://172.17.0.1:8080/api/;
+        proxy_pass http://host.docker.internal:8080/api/;
         proxy_http_version 1.1;
         proxy_set_header Host \\\$host;
         proxy_set_header X-Real-IP \\\$remote_addr;
@@ -202,7 +203,10 @@ server {
 NGINX_EOF
 
   docker rm -f email-system-nginx 2>/dev/null || true
-  docker run -d --name email-system-nginx --network host \
+  docker run -d --name email-system-nginx \
+    --add-host=host.docker.internal:host-gateway \
+    -p 80:80 \
+    $([ -n "$ssl_block" ] && echo "-p 443:443") \
     -v "$dist_dir:/usr/share/nginx/html:ro" \
     -v /tmp/nginx-email.conf:/etc/nginx/conf.d/default.conf:ro \
     $extra_mounts \

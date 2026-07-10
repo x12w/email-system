@@ -9,8 +9,10 @@ import com.example.emailsystem.dto.AppDtos.RegisterRequest;
 import com.example.emailsystem.dto.AppDtos.UserInfo;
 import com.example.emailsystem.security.AuthUser;
 import com.example.emailsystem.security.SecurityUtils;
+import com.example.emailsystem.security.TokenBlacklistService;
 import com.example.emailsystem.security.TokenService;
 import com.example.emailsystem.service.UserRegistryService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,10 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final TokenService tokenService;
     private final UserRegistryService userRegistryService;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public AuthController(TokenService tokenService, UserRegistryService userRegistryService) {
+    public AuthController(TokenService tokenService, UserRegistryService userRegistryService,
+                          TokenBlacklistService tokenBlacklistService) {
         this.tokenService = tokenService;
         this.userRegistryService = userRegistryService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @PostMapping("/login")
@@ -49,7 +54,11 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout() {
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            tokenBlacklistService.blacklist(authorization.substring(7));
+        }
         return ApiResponse.ok(null);
     }
 

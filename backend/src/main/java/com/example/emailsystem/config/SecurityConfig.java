@@ -4,7 +4,9 @@ import com.example.emailsystem.common.ApiResponse;
 import com.example.emailsystem.security.JwtAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,6 +22,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
+
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:80,http://localhost}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -49,7 +54,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        // When allowCredentials=true, use explicit origins (not "*") per CORS spec
+        config.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

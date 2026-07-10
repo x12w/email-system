@@ -7,12 +7,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -33,6 +35,27 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.maxAttempts = maxAttempts;
         this.windowSeconds = windowSeconds;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * Periodically evict expired entries to prevent unbounded memory growth.
+     * Runs every 5 minutes, removes entries older than 2x the rate-limit window.
+     */
+    @Scheduled(fixedDelay = 300_000)
+    public void evictExpiredEntries() {
+        long cutoff = System.currentTimeMillis() - windowSeconds * 2 * 1000;
+        Iterator<Map.Entry<String, RateWindow>> it = attemptsByIp.entrySet().iterator();
+        int removed = 0;
+        while (it.hasNext()) {
+            Map.Entry<String, RateWindow> entry = it.next();
+            if (entry.getValue().windowStart() < cutoff) {
+                it.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            log.debug("Rate limiter evicted {} expired IP entries", removed);
+        }
     }
 
     @Override

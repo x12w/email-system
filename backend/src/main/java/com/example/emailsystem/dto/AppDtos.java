@@ -1,5 +1,6 @@
 package com.example.emailsystem.dto;
 
+import com.example.emailsystem.common.ValidPassword;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,7 +19,7 @@ public final class AppDtos {
 
     public record RegisterRequest(
         @NotBlank String username,
-        @NotBlank String password,
+        @NotBlank @ValidPassword String password,
         @NotBlank String displayName,
         @NotBlank @Email String emailAddress
     ) {

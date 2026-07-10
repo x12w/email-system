@@ -14,9 +14,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenService tokenService;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthenticationFilter(TokenService tokenService) {
+    public JwtAuthenticationFilter(TokenService tokenService, TokenBlacklistService tokenBlacklistService) {
         this.tokenService = tokenService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -24,11 +26,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            AuthUser user = tokenService.parse(authorization.substring(7));
-            if (user != null) {
-                SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(user, null, List.of())
-                );
+            String token = authorization.substring(7);
+            if (!tokenBlacklistService.isBlacklisted(token)) {
+                AuthUser user = tokenService.parse(token);
+                if (user != null) {
+                    SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(user, null, List.of())
+                    );
+                }
             }
         }
         filterChain.doFilter(request, response);

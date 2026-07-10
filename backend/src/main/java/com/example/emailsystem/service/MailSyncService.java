@@ -4,8 +4,10 @@ import com.example.emailsystem.entity.MailAccount;
 import com.example.emailsystem.entity.MailFolder;
 import com.example.emailsystem.entity.MailMessage;
 import com.example.emailsystem.entity.MailRecipient;
+import com.example.emailsystem.entity.SysUser;
 import com.example.emailsystem.mapper.MailMessageMapper;
 import com.example.emailsystem.mapper.MailRecipientMapper;
+import com.example.emailsystem.mapper.SysUserMapper;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
@@ -17,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,22 +30,27 @@ import org.springframework.stereotype.Service;
 @Service
 public class MailSyncService {
     private static final Logger log = LoggerFactory.getLogger(MailSyncService.class);
+    private static final ZoneId TZ = ZoneId.of("Asia/Shanghai");
 
     private final MailAccountService mailAccountService;
     private final MailFolderService mailFolderService;
     private final MailMessageMapper mailMessageMapper;
     private final MailRecipientMapper mailRecipientMapper;
+    private final SysUserMapper sysUserMapper;
     private final int maxFetchCount;
+    private final ExecutorService syncExecutor = Executors.newFixedThreadPool(4);
 
     public MailSyncService(MailAccountService mailAccountService,
                            MailFolderService mailFolderService,
                            MailMessageMapper mailMessageMapper,
                            MailRecipientMapper mailRecipientMapper,
+                           SysUserMapper sysUserMapper,
                            @Value("${mail.imap.fetch-count:50}") int maxFetchCount) {
         this.mailAccountService = mailAccountService;
         this.mailFolderService = mailFolderService;
         this.mailMessageMapper = mailMessageMapper;
         this.mailRecipientMapper = mailRecipientMapper;
+        this.sysUserMapper = sysUserMapper;
         this.maxFetchCount = maxFetchCount;
     }
 
@@ -50,12 +59,14 @@ public class MailSyncService {
      */
     @Scheduled(fixedDelay = 60000)
     public void syncAllAccounts() {
-        // 简化实现：同步 userId=1 的所有账号
-        syncUserAccounts(1L);
+        List<SysUser> users = sysUserMapper.selectList(null);
+        for (SysUser user : users) {
+            syncUserAccounts(user.getId());
+        }
     }
 
     public void syncUserAccounts(Long userId) {
-        new Thread(() -> {
+        syncExecutor.submit(() -> {
             List<MailAccount> accounts = mailAccountService.listAccounts(userId);
             for (MailAccount account : accounts) {
                 try {
@@ -67,7 +78,7 @@ public class MailSyncService {
                     log.warn("IMAP 同步失败 account={}: {}", account.getEmailAddress(), e.getMessage());
                 }
             }
-        }, "imap-sync-user-" + userId).start();
+        });
     }
 
     public int syncInbox(MailAccount account) {
@@ -87,7 +98,8 @@ public class MailSyncService {
         try {
             Session session = Session.getInstance(props);
             jakarta.mail.Store store = session.getStore("imaps");
-            store.connect(account.getImapHost(), account.getAuthUsername(), account.getAuthPasswordEncrypted());
+            store.connect(account.getImapHost(), account.getAuthUsername(),
+                mailAccountService.getDecryptedPassword(account));
 
             Folder inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_WRITE);
@@ -108,20 +120,30 @@ public class MailSyncService {
                 String msgId = ((MimeMessage) msg).getMessageID();
                 if (msgId != null && mailMessageMapper.selectCount(
                     new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<MailMessage>()
-                        .eq("message_id", msgId)) > 0) {
+                        .eq("message_id", msgId)
+                        .eq("account_id", account.getId())) > 0) {
                     continue;
                 }
                 MimeMessage mimeMsg = (MimeMessage) msg;
+
+                // 安全处理 From 地址 — getFrom() 可能为 null 或空数组
+                String fromAddress = "";
+                String fromName = null;
+                jakarta.mail.Address[] froms = mimeMsg.getFrom();
+                if (froms != null && froms.length > 0 && froms[0] instanceof InternetAddress ia) {
+                    fromAddress = ia.getAddress() != null ? ia.getAddress() : "";
+                    fromName = ia.getPersonal();
+                }
+
                 MailMessage mailMessage = new MailMessage();
                 mailMessage.setUserId(account.getUserId());
                 mailMessage.setAccountId(account.getId());
                 mailMessage.setFolderId(inboxFolder.getId());
 
-                InternetAddress from = (InternetAddress) mimeMsg.getFrom()[0];
                 mailMessage.setMessageUid(msgId);
                 mailMessage.setMessageId(msgId);
-                mailMessage.setFromAddress(from.getAddress());
-                mailMessage.setFromName(from.getPersonal());
+                mailMessage.setFromAddress(fromAddress);
+                mailMessage.setFromName(fromName);
                 mailMessage.setSubject(mimeMsg.getSubject() == null ? "" : mimeMsg.getSubject());
                 mailMessage.setContentType("html");
                 mailMessage.setContent(extractContent(mimeMsg));
@@ -140,7 +162,9 @@ public class MailSyncService {
                 // 保存收件人
                 if (mimeMsg.getRecipients(Message.RecipientType.TO) != null) {
                     for (jakarta.mail.Address addr : mimeMsg.getRecipients(Message.RecipientType.TO)) {
-                        saveRecipient(mailMessage.getId(), "to", (InternetAddress) addr);
+                        if (addr instanceof InternetAddress ia) {
+                            saveRecipient(mailMessage.getId(), "to", ia);
+                        }
                     }
                 }
 
@@ -168,7 +192,7 @@ public class MailSyncService {
         MailRecipient recipient = new MailRecipient();
         recipient.setMessageId(messageId);
         recipient.setType(type);
-        recipient.setEmailAddress(addr.getAddress().toLowerCase());
+        recipient.setEmailAddress(addr.getAddress() != null ? addr.getAddress().toLowerCase() : "");
         recipient.setDisplayName(addr.getPersonal());
         mailRecipientMapper.insert(recipient);
     }
@@ -198,12 +222,18 @@ public class MailSyncService {
 
     private String extractPreview(String content) {
         if (content == null) return "";
-        String plain = content.replaceAll("<[^>]+>", "").strip();
+        // Strip script/style blocks and their contents, then remove remaining HTML tags
+        String plain = content
+            .replaceAll("(?is)<script[^>]*>.*?</script>", " ")
+            .replaceAll("(?is)<style[^>]*>.*?</style>", " ")
+            .replaceAll("<[^>]+>", " ")
+            .replaceAll("\\s+", " ")
+            .strip();
         return plain.length() > 120 ? plain.substring(0, 120) : plain;
     }
 
     private LocalDateTime toLocalDateTime(java.util.Date date) {
         if (date == null) return LocalDateTime.now();
-        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        return date.toInstant().atZone(TZ).toLocalDateTime();
     }
 }
