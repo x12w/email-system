@@ -184,20 +184,20 @@ start_nginx() {
   cat > /tmp/nginx-email.conf << NGINX_EOF
 server {
     listen 80;
-    \${ssl_block:+listen 443 ssl;}
-    \${ssl_block:+ssl_certificate /etc/nginx/certs/fullchain.pem;}
-    \${ssl_block:+ssl_certificate_key /etc/nginx/certs/privkey.pem;}
+    ${ssl_block:+listen 443 ssl;}
+    ${ssl_block:+ssl_certificate /etc/nginx/certs/fullchain.pem;}
+    ${ssl_block:+ssl_certificate_key /etc/nginx/certs/privkey.pem;}
     root /usr/share/nginx/html;
     index index.html;
     client_max_body_size 50m;
-    location / { try_files \\\$uri \\\$uri/ /index.html; }
+    location / { try_files \$uri \$uri/ /index.html; }
     location /api/ {
         proxy_pass http://host.docker.internal:8080/api/;
         proxy_http_version 1.1;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 NGINX_EOF
