@@ -211,7 +211,16 @@ NGINX_EOF
     -v /tmp/nginx-email.conf:/etc/nginx/conf.d/default.conf:ro \
     $extra_mounts \
     nginx:1.27-alpine >/dev/null 2>&1
-  ok "Nginx 已就绪 → http://localhost"
+  info "等待 Nginx 就绪..."
+  for i in $(seq 1 10); do
+    if curl -s -o /dev/null -w '%{http_code}' http://localhost 2>/dev/null | grep -q '200\|301\|304'; then
+      ok "Nginx 已就绪 → http://localhost"
+      return 0
+    fi
+    sleep 1
+  done
+  warn "Nginx 可能未完全就绪，请检查: docker logs email-system-nginx"
+  return 1
 }
 
 start() {
