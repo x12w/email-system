@@ -54,6 +54,7 @@
             </div>
             <div class="menu-section">
               <el-button :icon="User" @click="showContacts = true">联系人</el-button>
+              <el-button :icon="Setting" @click="showLlmSettings = true">LLM 设置</el-button>
               <el-button :icon="isDarkMode ? Sunny : Moon" @click="toggleTheme">
                 {{ isDarkMode ? '浅色模式' : '暗黑模式' }}
               </el-button>
@@ -189,12 +190,7 @@
         <article class="message-body" v-html="selectedMessage.content" />
 
         <section class="intelligence-panel">
-          <div class="panel-title">
-            <h3>智能分析</h3>
-            <el-button link type="primary" @click="showLlmSettings = true" title="LLM 设置">
-              <el-icon><Setting /></el-icon>
-            </el-button>
-          </div>
+          <div class="panel-title"><h3>智能分析</h3></div>
           <div v-if="analysis" class="analysis-grid">
             <div><span>垃圾分</span><el-progress :percentage="scorePercent(analysis.spamScore)" :stroke-width="8" /></div>
             <div><span>优先级分</span><el-progress :percentage="scorePercent(analysis.priorityScore)" :stroke-width="8" status="warning" /></div>
