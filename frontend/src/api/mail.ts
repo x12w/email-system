@@ -129,6 +129,20 @@ export interface PluginStatus {
   status: string
 }
 
+export interface UserLlmConfig {
+  useCustom: boolean
+  baseUrl: string | null
+  apiKeyMasked: string | null
+  model: string | null
+}
+
+export interface UserLlmConfigRequest {
+  useCustom: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
 export function listAccounts() {
   return http.get<unknown, MailAccount[]>('/mail-accounts')
 }
@@ -195,4 +209,12 @@ export function markPushEventRead(id: number) {
 
 export function listPlugins() {
   return http.get<unknown, PluginStatus[]>('/intelligence/plugins')
+}
+
+export function getLlmConfig() {
+  return http.get<unknown, UserLlmConfig>('/intelligence/llm-config')
+}
+
+export function saveLlmConfig(data: UserLlmConfigRequest) {
+  return http.put<unknown, UserLlmConfig>('/intelligence/llm-config', data)
 }

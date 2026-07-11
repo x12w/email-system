@@ -4,13 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.emailsystem.common.ApiResponse;
 import com.example.emailsystem.dto.AppDtos.PluginStatusResponse;
 import com.example.emailsystem.dto.AppDtos.PushEventResponse;
+import com.example.emailsystem.dto.AppDtos.UserLlmConfigRequest;
+import com.example.emailsystem.dto.AppDtos.UserLlmConfigResponse;
 import com.example.emailsystem.entity.MailPushEvent;
+import com.example.emailsystem.entity.UserLlmConfig;
 import com.example.emailsystem.intelligence.config.IntelligenceLlmProperties;
 import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.dto.ThreatIndicator;
 import com.example.emailsystem.intelligence.service.IntelligenceAnalysisService;
 import com.example.emailsystem.mapper.MailPushEventMapper;
 import com.example.emailsystem.security.SecurityUtils;
+import com.example.emailsystem.service.UserLlmConfigService;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,15 +26,18 @@ public class IntelligenceController {
     private final IntelligenceAnalysisService intelligenceAnalysisService;
     private final MailPushEventMapper mailPushEventMapper;
     private final IntelligenceLlmProperties llmProps;
+    private final UserLlmConfigService userLlmConfigService;
 
     public IntelligenceController(
         IntelligenceAnalysisService intelligenceAnalysisService,
         MailPushEventMapper mailPushEventMapper,
-        IntelligenceLlmProperties llmProps
+        IntelligenceLlmProperties llmProps,
+        UserLlmConfigService userLlmConfigService
     ) {
         this.intelligenceAnalysisService = intelligenceAnalysisService;
         this.mailPushEventMapper = mailPushEventMapper;
         this.llmProps = llmProps;
+        this.userLlmConfigService = userLlmConfigService;
     }
 
     @GetMapping("/messages/{messageId}")
@@ -84,6 +91,40 @@ public class IntelligenceController {
             llmProps.timeoutSeconds() * 1000,
             llmProps.enabled() ? "ready" : "disabled"
         )));
+    }
+
+    @GetMapping("/llm-config")
+    public ApiResponse<UserLlmConfigResponse> getLlmConfig() {
+        UserLlmConfig config = userLlmConfigService.getByUserId(SecurityUtils.currentUser().id());
+        return ApiResponse.ok(new UserLlmConfigResponse(
+            config.getUseCustom() != null && config.getUseCustom() == 1,
+            config.getBaseUrl(),
+            maskApiKey(config.getApiKey()),
+            config.getModel()
+        ));
+    }
+
+    @PutMapping("/llm-config")
+    public ApiResponse<UserLlmConfigResponse> saveLlmConfig(@RequestBody UserLlmConfigRequest request) {
+        UserLlmConfig config = userLlmConfigService.save(
+            SecurityUtils.currentUser().id(),
+            request.baseUrl(),
+            request.apiKey(),
+            request.model(),
+            request.useCustom()
+        );
+        return ApiResponse.ok(new UserLlmConfigResponse(
+            config.getUseCustom() != null && config.getUseCustom() == 1,
+            config.getBaseUrl(),
+            maskApiKey(config.getApiKey()),
+            config.getModel()
+        ));
+    }
+
+    private String maskApiKey(String key) {
+        if (key == null || key.isBlank()) return null;
+        if (key.length() <= 8) return "****";
+        return key.substring(0, 3) + "***" + key.substring(key.length() - 4);
     }
 
     private PushEventResponse toPushEvent(MailPushEvent e) {

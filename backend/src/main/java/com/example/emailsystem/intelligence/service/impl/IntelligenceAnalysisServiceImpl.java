@@ -2,10 +2,12 @@ package com.example.emailsystem.intelligence.service.impl;
 
 import com.example.emailsystem.common.BusinessException;
 import com.example.emailsystem.entity.MailMessage;
+import com.example.emailsystem.entity.UserLlmConfig;
 import com.example.emailsystem.intelligence.client.IntelligenceClient;
 import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.service.IntelligenceAnalysisService;
 import com.example.emailsystem.security.SecurityUtils;
+import com.example.emailsystem.service.UserLlmConfigService;
 import com.example.emailsystem.service.impl.MailMessageServiceImpl;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,21 +23,34 @@ public class IntelligenceAnalysisServiceImpl implements IntelligenceAnalysisServ
 
     private final IntelligenceClient intelligenceClient;
     private final MailMessageServiceImpl mailMessageService;
+    private final UserLlmConfigService userLlmConfigService;
     private final Map<Long, IntelligenceAnalysisResult> results = new ConcurrentHashMap<>();
 
     public IntelligenceAnalysisServiceImpl(
         IntelligenceClient intelligenceClient,
-        MailMessageServiceImpl mailMessageService
+        MailMessageServiceImpl mailMessageService,
+        UserLlmConfigService userLlmConfigService
     ) {
         this.intelligenceClient = intelligenceClient;
         this.mailMessageService = mailMessageService;
+        this.userLlmConfigService = userLlmConfigService;
     }
 
     @Override
     public IntelligenceAnalysisResult analyzeMessage(Long messageId) {
         MailMessage message = mailMessageService.getMessage(SecurityUtils.currentUser().id(), messageId);
         try {
-            IntelligenceAnalysisResult result = intelligenceClient.analyze(message);
+            UserLlmConfig config = userLlmConfigService.getByUserId(SecurityUtils.currentUser().id());
+            IntelligenceAnalysisResult result;
+            if (config.getUseCustom() != null && config.getUseCustom() == 1
+                && config.getBaseUrl() != null && !config.getBaseUrl().isBlank()
+                && config.getApiKey() != null && !config.getApiKey().isBlank()
+                && config.getModel() != null && !config.getModel().isBlank()) {
+                result = intelligenceClient.analyze(message,
+                    config.getBaseUrl(), config.getApiKey(), config.getModel());
+            } else {
+                result = intelligenceClient.analyze(message);
+            }
             cacheResult(message.getId(), result);
             return result;
         } catch (Exception exception) {

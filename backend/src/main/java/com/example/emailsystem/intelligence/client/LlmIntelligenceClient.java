@@ -41,15 +41,39 @@ public class LlmIntelligenceClient implements IntelligenceClient {
             return safeDefault(message.getId());
         }
         try {
-            String systemPrompt = buildSystemPrompt();
-            String userPrompt = buildUserPrompt(message);
-            String llmResponse = callLlm(systemPrompt, userPrompt);
-            return parseResponse(message.getId(), llmResponse);
+            return doAnalyze(message, restClient, properties.model());
         } catch (Exception e) {
             log.warn("LLM analysis failed for message {}, falling back to safe default: {}",
                 message.getId(), e.getMessage());
             return safeDefault(message.getId());
         }
+    }
+
+    @Override
+    public IntelligenceAnalysisResult analyze(MailMessage message, String baseUrl, String apiKey, String model) {
+        try {
+            RestClient customClient = RestClient.create()
+                .mutate()
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+            return doAnalyze(message, customClient, model, baseUrl);
+        } catch (Exception e) {
+            log.warn("Custom LLM analysis failed for message {}, falling back to safe default: {}",
+                message.getId(), e.getMessage());
+            return safeDefault(message.getId());
+        }
+    }
+
+    private IntelligenceAnalysisResult doAnalyze(MailMessage message, RestClient client, String model) {
+        return doAnalyze(message, client, model, null);
+    }
+
+    private IntelligenceAnalysisResult doAnalyze(MailMessage message, RestClient client, String model, String baseUrlOverride) {
+        String systemPrompt = buildSystemPrompt();
+        String userPrompt = buildUserPrompt(message);
+        String llmResponse = callLlm(client, systemPrompt, userPrompt, model, baseUrlOverride);
+        return parseResponse(message.getId(), model, llmResponse);
     }
 
     private String buildSystemPrompt() {
@@ -130,40 +154,40 @@ public class LlmIntelligenceClient implements IntelligenceClient {
         return links;
     }
 
-    private String callLlm(String systemPrompt, String userPrompt) {
-        Map<String, Object> requestBody = Map.of(
-            "model", properties.model(),
+    private String callLlm(RestClient client, String systemPrompt, String userPrompt,
+                           String model, String baseUrlOverride) {
+        Map<String, Object> requestBody = new java.util.HashMap<>(Map.of(
+            "model", model,
             "temperature", 0.1,
             "messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)
             )
-        );
+        ));
+        String uri = (baseUrlOverride != null ? baseUrlOverride : "") + "/chat/completions";
         try {
-            // Add response_format for models that support it (OpenAI, compatible proxies)
-            String requestJson = objectMapper.writeValueAsString(addJsonFormat(requestBody));
-
-            String response = restClient.post()
-                .uri("/chat/completions")
+            requestBody.put("response_format", Map.of("type", "json_object"));
+            String requestJson = objectMapper.writeValueAsString(requestBody);
+            String response = client.post()
+                .uri(uri)
                 .body(requestJson)
                 .retrieve()
                 .body(String.class);
-
             if (response == null || response.isBlank()) {
                 throw new RuntimeException("Empty response from LLM");
             }
             return response;
         } catch (Exception e) {
-            // Try without response_format for models that don't support it
             log.debug("LLM call with json_object format failed, retrying without: {}", e.getMessage());
+            requestBody.remove("response_format");
             String requestJson;
             try {
                 requestJson = objectMapper.writeValueAsString(requestBody);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to serialize request", ex);
             }
-            String response = restClient.post()
-                .uri("/chat/completions")
+            String response = client.post()
+                .uri(uri)
                 .body(requestJson)
                 .retrieve()
                 .body(String.class);
@@ -174,13 +198,7 @@ public class LlmIntelligenceClient implements IntelligenceClient {
         }
     }
 
-    private Map<String, Object> addJsonFormat(Map<String, Object> body) {
-        Map<String, Object> mutable = new java.util.HashMap<>(body);
-        mutable.put("response_format", Map.of("type", "json_object"));
-        return mutable;
-    }
-
-    IntelligenceAnalysisResult parseResponse(Long messageId, String llmResponse) {
+    IntelligenceAnalysisResult parseResponse(Long messageId, String model, String llmResponse) {
         try {
             JsonNode root = objectMapper.readTree(llmResponse);
             JsonNode content = root.path("choices").get(0).path("message").path("content");
@@ -213,7 +231,7 @@ public class LlmIntelligenceClient implements IntelligenceClient {
                 BigDecimal.valueOf(clamp(priority.path("score").asDouble(0), 0, 1)),
                 risk.path("level").asText("none"),
                 BigDecimal.valueOf(clamp(risk.path("score").asDouble(0), 0, 1)),
-                properties.model(),
+                model,
                 "1.0.0",
                 OffsetDateTime.now(),
                 threats
@@ -221,7 +239,7 @@ public class LlmIntelligenceClient implements IntelligenceClient {
         } catch (Exception e) {
             log.warn("Failed to parse LLM response for message {}, using safe default: {}",
                 messageId, e.getMessage());
-            return safeDefault(messageId);
+            return safeDefault(messageId, model);
         }
     }
 
@@ -241,12 +259,16 @@ public class LlmIntelligenceClient implements IntelligenceClient {
     }
 
     private IntelligenceAnalysisResult safeDefault(Long messageId) {
+        return safeDefault(messageId, properties.model());
+    }
+
+    private IntelligenceAnalysisResult safeDefault(Long messageId, String model) {
         return new IntelligenceAnalysisResult(
             messageId,
             "normal", BigDecimal.ZERO,
             "normal", BigDecimal.ZERO,
             "none", BigDecimal.ZERO,
-            properties.model(), "1.0.0",
+            model, "1.0.0",
             OffsetDateTime.now(),
             List.of()
         );
