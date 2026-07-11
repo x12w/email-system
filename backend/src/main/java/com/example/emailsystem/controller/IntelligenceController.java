@@ -16,6 +16,8 @@ import com.example.emailsystem.mapper.MailPushEventMapper;
 import com.example.emailsystem.security.SecurityUtils;
 import com.example.emailsystem.service.UserLlmConfigService;
 import java.time.ZoneId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/intelligence")
 public class IntelligenceController {
+    private static final Logger log = LoggerFactory.getLogger(IntelligenceController.class);
+
     private final IntelligenceAnalysisService intelligenceAnalysisService;
     private final MailPushEventMapper mailPushEventMapper;
     private final IntelligenceLlmProperties llmProps;
@@ -106,6 +110,8 @@ public class IntelligenceController {
 
     @PutMapping("/llm-config")
     public ApiResponse<UserLlmConfigResponse> saveLlmConfig(@RequestBody UserLlmConfigRequest request) {
+        log.info("LLM config save request: useCustom={}, baseUrl={}, model={}",
+            request.useCustom(), request.baseUrl(), request.model());
         UserLlmConfig config = userLlmConfigService.save(
             SecurityUtils.currentUser().id(),
             request.baseUrl(),
