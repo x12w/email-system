@@ -580,8 +580,8 @@ async function saveLlmSettings() {
     })
     showLlmSettings.value = false
     ElMessage.success('LLM 设置已保存')
-  } catch {
-    ElMessage.error('保存失败')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败')
   }
 }
 </script>

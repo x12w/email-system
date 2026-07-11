@@ -40,13 +40,20 @@ public class UserLlmConfigService {
             existing = new UserLlmConfig();
             existing.setUserId(userId);
             existing.setCreatedAt(LocalDateTime.now());
+            existing.setUpdatedAt(LocalDateTime.now());
+            existing.setUseCustom(useCustom ? 1 : 0);
+            existing.setBaseUrl(baseUrl);
+            existing.setApiKey(apiKey);
+            existing.setModel(model);
+            mapper.insert(existing);
+        } else {
+            existing.setUseCustom(useCustom ? 1 : 0);
+            existing.setBaseUrl(baseUrl);
+            existing.setApiKey(apiKey);
+            existing.setModel(model);
+            existing.setUpdatedAt(LocalDateTime.now());
+            mapper.updateById(existing);
         }
-        existing.setUseCustom(useCustom ? 1 : 0);
-        existing.setBaseUrl(baseUrl);
-        existing.setApiKey(apiKey);
-        existing.setModel(model);
-        existing.setUpdatedAt(LocalDateTime.now());
-        mapper.insertOrUpdate(existing);
         return existing;
     }
 }
