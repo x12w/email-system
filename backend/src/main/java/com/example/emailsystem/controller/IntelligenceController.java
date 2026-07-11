@@ -4,16 +4,20 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.emailsystem.common.ApiResponse;
 import com.example.emailsystem.dto.AppDtos.PluginStatusResponse;
 import com.example.emailsystem.dto.AppDtos.PushEventResponse;
+import com.example.emailsystem.dto.AppDtos.UserLlmConfigRequest;
+import com.example.emailsystem.dto.AppDtos.UserLlmConfigResponse;
 import com.example.emailsystem.entity.MailPushEvent;
+import com.example.emailsystem.entity.UserLlmConfig;
+import com.example.emailsystem.intelligence.config.IntelligenceLlmProperties;
 import com.example.emailsystem.intelligence.dto.IntelligenceAnalysisResult;
 import com.example.emailsystem.intelligence.dto.ThreatIndicator;
 import com.example.emailsystem.intelligence.service.IntelligenceAnalysisService;
 import com.example.emailsystem.mapper.MailPushEventMapper;
 import com.example.emailsystem.security.SecurityUtils;
+import com.example.emailsystem.service.UserLlmConfigService;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,25 +25,19 @@ import org.springframework.web.bind.annotation.*;
 public class IntelligenceController {
     private final IntelligenceAnalysisService intelligenceAnalysisService;
     private final MailPushEventMapper mailPushEventMapper;
-    private final String pluginName;
-    private final String pluginVersion;
-    private final boolean pluginEnabled;
-    private final int timeoutMs;
+    private final IntelligenceLlmProperties llmProps;
+    private final UserLlmConfigService userLlmConfigService;
 
     public IntelligenceController(
         IntelligenceAnalysisService intelligenceAnalysisService,
         MailPushEventMapper mailPushEventMapper,
-        @Value("${intelligence.plugin.name}") String pluginName,
-        @Value("${intelligence.plugin.version}") String pluginVersion,
-        @Value("${intelligence.plugin.enabled}") boolean pluginEnabled,
-        @Value("${intelligence.plugin.timeout-ms}") int timeoutMs
+        IntelligenceLlmProperties llmProps,
+        UserLlmConfigService userLlmConfigService
     ) {
         this.intelligenceAnalysisService = intelligenceAnalysisService;
         this.mailPushEventMapper = mailPushEventMapper;
-        this.pluginName = pluginName;
-        this.pluginVersion = pluginVersion;
-        this.pluginEnabled = pluginEnabled;
-        this.timeoutMs = timeoutMs;
+        this.llmProps = llmProps;
+        this.userLlmConfigService = userLlmConfigService;
     }
 
     @GetMapping("/messages/{messageId}")
@@ -86,7 +84,47 @@ public class IntelligenceController {
     @GetMapping("/plugins")
     public ApiResponse<List<PluginStatusResponse>> plugins() {
         return ApiResponse.ok(List.of(new PluginStatusResponse(
-            pluginName, pluginVersion, "java-rule-fallback", pluginEnabled, timeoutMs, "ready")));
+            llmProps.model(),
+            "llm",
+            "openai-compatible-api",
+            llmProps.enabled(),
+            llmProps.timeoutSeconds() * 1000,
+            llmProps.enabled() ? "ready" : "disabled"
+        )));
+    }
+
+    @GetMapping("/llm-config")
+    public ApiResponse<UserLlmConfigResponse> getLlmConfig() {
+        UserLlmConfig config = userLlmConfigService.getByUserId(SecurityUtils.currentUser().id());
+        return ApiResponse.ok(new UserLlmConfigResponse(
+            config.getUseCustom() != null && config.getUseCustom() == 1,
+            config.getBaseUrl(),
+            maskApiKey(config.getApiKey()),
+            config.getModel()
+        ));
+    }
+
+    @PutMapping("/llm-config")
+    public ApiResponse<UserLlmConfigResponse> saveLlmConfig(@RequestBody UserLlmConfigRequest request) {
+        UserLlmConfig config = userLlmConfigService.save(
+            SecurityUtils.currentUser().id(),
+            request.baseUrl(),
+            request.apiKey(),
+            request.model(),
+            request.useCustom()
+        );
+        return ApiResponse.ok(new UserLlmConfigResponse(
+            config.getUseCustom() != null && config.getUseCustom() == 1,
+            config.getBaseUrl(),
+            maskApiKey(config.getApiKey()),
+            config.getModel()
+        ));
+    }
+
+    private String maskApiKey(String key) {
+        if (key == null || key.isBlank()) return null;
+        if (key.length() <= 8) return "****";
+        return key.substring(0, 3) + "***" + key.substring(key.length() - 4);
     }
 
     private PushEventResponse toPushEvent(MailPushEvent e) {

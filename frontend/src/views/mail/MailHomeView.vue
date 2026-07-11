@@ -189,7 +189,12 @@
         <article class="message-body" v-html="selectedMessage.content" />
 
         <section class="intelligence-panel">
-          <div class="panel-title"><h3>智能分析</h3></div>
+          <div class="panel-title">
+            <h3>智能分析</h3>
+            <el-button link type="primary" @click="showLlmSettings = true" title="LLM 设置">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+          </div>
           <div v-if="analysis" class="analysis-grid">
             <div><span>垃圾分</span><el-progress :percentage="scorePercent(analysis.spamScore)" :stroke-width="8" /></div>
             <div><span>优先级分</span><el-progress :percentage="scorePercent(analysis.priorityScore)" :stroke-width="8" status="warning" /></div>
@@ -282,26 +287,58 @@
       </button>
     </div>
   </el-dialog>
+
+  <!-- LLM 设置 -->
+  <el-dialog v-model="showLlmSettings" title="LLM API 设置" width="480px">
+    <el-form label-width="100px">
+      <el-form-item label="API 来源">
+        <el-switch
+          v-model="llmConfig.useCustom"
+          active-text="自定义"
+          inactive-text="服务器默认" />
+      </el-form-item>
+      <template v-if="llmConfig.useCustom">
+        <el-form-item label="Base URL">
+          <el-input v-model="llmConfig.baseUrl" placeholder="https://api.openai.com/v1" />
+        </el-form-item>
+        <el-form-item label="API Key">
+          <el-input v-model="llmConfig.apiKey" type="password" show-password placeholder="sk-..." />
+        </el-form-item>
+        <el-form-item label="Model">
+          <el-input v-model="llmConfig.model" placeholder="gpt-4o-mini" />
+        </el-form-item>
+      </template>
+      <template v-else>
+        <el-alert type="info" :closable="false" show-icon
+          title="当前使用服务器提供的 LLM API，无需额外配置。" />
+      </template>
+    </el-form>
+    <template #footer>
+      <el-button @click="showLlmSettings = false">取消</el-button>
+      <el-button type="primary" @click="saveLlmSettings">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import {
   ArrowDown, ArrowLeft, Bell, Close, Cpu, Delete, Document,
   EditPen, Fold, Folder, Message, Moon, Plus, Refresh,
-  Search, Sunny, SwitchButton, User, View
+  Search, Setting, Sunny, SwitchButton, User, View
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   analyzeMessage, createAccount, createContact, deleteAccount,
-  deleteMessage, getIntelligenceResult, getMessage, listAccounts,
-  listContacts, listFolders, listMessages, listPlugins,
+  deleteMessage, getIntelligenceResult, getLlmConfig, getMessage,
+  listAccounts, listContacts, listFolders, listMessages, listPlugins,
   listPushEvents, markMessageRead, markPushEventRead, saveDraft,
-  sendMessage, type Contact, type Folder as MailFolder,
+  saveLlmConfig, sendMessage, type Contact, type Folder as MailFolder,
   type IntelligenceResult, type MailAccount, type MailAccountRequest,
   type MessageDetail, type MessageSummary, type PluginStatus,
-  type PushEvent, type SendMessageRequest
+  type PushEvent, type SendMessageRequest,
+  type UserLlmConfig, type UserLlmConfigRequest
 } from '@/api/mail'
 import { useAuthStore } from '@/stores/auth'
 
@@ -326,6 +363,8 @@ const accountDrawerVisible = ref(false)
 const creatingAccount = ref(false)
 const showContacts = ref(false)
 const showPushEvents = ref(false)
+const showLlmSettings = ref(false)
+const llmConfig = reactive<UserLlmConfigRequest>({ useCustom: false, baseUrl: '', apiKey: '', model: '' })
 const composeTo = ref('')
 const contactKeyword = ref('')
 
@@ -361,6 +400,13 @@ async function loadAll() {
     ])
     accounts.value = accData; folders.value = folderData
     plugins.value = pluginData; pushEvents.value = pushData
+    try {
+      const cfg = await getLlmConfig()
+      llmConfig.useCustom = cfg.useCustom
+      llmConfig.baseUrl = cfg.baseUrl || ''
+      llmConfig.model = cfg.model || ''
+      llmConfig.apiKey = '' // never prefill API key
+    } catch { /* ignore if config not available */ }
     if (!activeAccountId.value && accounts.value.length) activeAccountId.value = accounts.value[0].id
     composeForm.accountId = activeAccountId.value || 1
     if (!activeFolderId.value || !visibleFolders.value.some(f => f.id === activeFolderId.value)) {
@@ -526,5 +572,20 @@ function riskLabel(v: string) {
 function priorityLabel(v: string) { const m: Record<string,string> = { low:'低', normal:'普通', high:'高' }; return m[v] || v }
 function formatTime(v: string) {
   return new Intl.DateTimeFormat('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).format(new Date(v))
+}
+
+async function saveLlmSettings() {
+  try {
+    await saveLlmConfig({
+      useCustom: llmConfig.useCustom,
+      baseUrl: llmConfig.baseUrl,
+      apiKey: llmConfig.apiKey,
+      model: llmConfig.model
+    })
+    showLlmSettings.value = false
+    ElMessage.success('LLM 设置已保存')
+  } catch {
+    ElMessage.error('保存失败')
+  }
 }
 </script>

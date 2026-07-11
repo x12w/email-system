@@ -180,4 +180,20 @@ public final class AppDtos {
         String status
     ) {
     }
+
+    public record UserLlmConfigRequest(
+        boolean useCustom,
+        String baseUrl,
+        String apiKey,
+        String model
+    ) {
+    }
+
+    public record UserLlmConfigResponse(
+        boolean useCustom,
+        String baseUrl,
+        String apiKeyMasked,
+        String model
+    ) {
+    }
 }

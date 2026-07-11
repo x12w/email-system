@@ -56,9 +56,9 @@ mail:
     fetch-count: ${IMAP_FETCH_COUNT:50}
 
 intelligence:
-  plugin:
-    enabled: ${INTELLIGENCE_PLUGIN_ENABLED:true}
-    name: ${INTELLIGENCE_PLUGIN_NAME:python-mail-intelligence}
-    version: ${INTELLIGENCE_PLUGIN_VERSION:0.1.0}
-    artifact-path: ${INTELLIGENCE_PLUGIN_ARTIFACT_PATH:./plugins/intelligence/native/linux/libmail_intelligence.so}
-    timeout-ms: ${INTELLIGENCE_PLUGIN_TIMEOUT_MS:2000}
+  llm:
+    enabled: ${INTELLIGENCE_LLM_ENABLED:true}
+    base-url: ${INTELLIGENCE_LLM_BASE_URL:http://localhost:11434/v1}
+    api-key: ${INTELLIGENCE_LLM_API_KEY:ollama}
+    model: ${INTELLIGENCE_LLM_MODEL:qwen2.5:7b}
+    timeout-seconds: ${INTELLIGENCE_LLM_TIMEOUT_SECONDS:30}
