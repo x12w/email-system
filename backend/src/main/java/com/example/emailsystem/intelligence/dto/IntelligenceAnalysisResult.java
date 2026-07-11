@@ -1,5 +1,6 @@
 package com.example.emailsystem.intelligence.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -12,8 +13,8 @@ public record IntelligenceAnalysisResult(
     BigDecimal priorityScore,
     String riskLevel,
     BigDecimal riskScore,
-    String pluginName,
-    String pluginVersion,
+    @JsonProperty("pluginName") String analyzerName,
+    @JsonProperty("pluginVersion") String analyzerVersion,
     OffsetDateTime analyzedAt,
     List<ThreatIndicator> threats
 ) {
