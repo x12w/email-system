@@ -580,8 +580,9 @@ async function saveLlmSettings() {
     })
     showLlmSettings.value = false
     ElMessage.success('LLM 设置已保存')
-  } catch {
-    ElMessage.error('保存失败')
+  } catch (e: any) {
+    console.error('LLM config save error:', e)
+    ElMessage.error(e?.message || '保存失败，请打开浏览器控制台查看详情')
   }
 }
 </script>
